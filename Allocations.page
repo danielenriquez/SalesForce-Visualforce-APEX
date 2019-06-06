@@ -1,0 +1,1368 @@
+<apex:page docType="html-5.0" showHeader="false" controller="AllocationsController">
+<!--Using  Jquery -->
+<apex:includeScript value="https://code.jquery.com/jquery-3.3.1.js" />
+<apex:includeScript value="https://cdn.datatables.net/1.10.19/js/jquery.dataTables.min.js"/>
+<apex:includeScript value="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.38/pdfmake.js"/>
+<apex:includeScript value="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.38/vfs_fonts.js"/>
+<apex:includeScript value="https://cdn.datatables.net/buttons/1.5.2/js/buttons.html5.min.js"/>
+<apex:includeScript value="https://cdn.datatables.net/buttons/1.5.2/js/dataTables.buttons.min.js"/>
+<apex:stylesheet value="https://cdn.datatables.net/1.10.19/css/jquery.dataTables.min.css" />
+<apex:stylesheet value="https://cdn.datatables.net/buttons/1.5.2/css/buttons.dataTables.min.css" />
+
+    <!-- <script type="text/javascript"> </script> -->
+    <script>
+        var gRepName = "";
+        var $j = jQuery.noConflict(); //Set jQuery working on Sales Force 
+        $j(document).ready(function() {
+            //Setup table order, export, search configurations
+            setReservTableConfig();
+            setAllocTableConfig();
+            setAllocTourTableConfig(); 
+
+        });     
+
+        //Set Reservation grid PDF Export settings. 
+        //Using DataTable jQuery
+        function setReservTableConfig(){
+            $j('.reservTable').DataTable({
+                paging:false,
+                info: false,
+                //pageLength: 30,
+                orderClasses: true,
+                dom: 'Bfrtip',
+                //dom: '<"top"Bfrtip>rt<"bottom"p>',
+                buttons: [{
+                            init: function (dt, node, config) { },
+                            extend: 'pdfHtml5',
+                            text: 'Export to PDF',
+                            className: 'allocButton',
+                            filename: 'Reservations',
+                            title: 'Exported Reservations',
+                            //messageTop: 'Reservations List',
+                            orientation: 'landscape',
+                           
+                            exportOptions: {
+                                modifier: { page: 'all' } //current
+                            },
+                            customize: function (doc) {
+                                                doc.content.splice(0,1); //remove table title
+                                                doc.pageMargins = [20,80,20,20];
+                                                var date=new Date();
+                                                var today=date.getDate()+"/"+(date.getMonth()+1)+"/"+date.getFullYear();
+                                                doc.defaultStyle.fontSize = 8;  
+                                                doc.styles.tableHeader.fontSize = 9;                                                
+                                                doc.styles.title.fontSize = 10;                                                                                                                                                      
+                                                                    
+                                                doc['footer']=(function(page, pages) {
+                                                    return {
+                                                        columns: ['Create on - ' + today,
+                                                            {
+                                                                alignment: 'right',
+                                                                text: [ { text: page.toString(), italics: true },
+                                                                    ' of ',
+                                                                    { text: pages.toString(), italics: true }]
+                                                            }
+                                                        ],
+                                                        margin: [20, 0, 20]
+                                                    }
+                                                });  
+                                                doc['header']=(function(page, pages) {
+                                                    return {
+                                                        columns: [
+                                                            {
+                                                                image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOMAAACiCAMAAACEVIq3AAADAFBMVEX9/f7////9/fz8/fv//f/5+fn+///7+/v9//3///z9/vl2dnZ5eXn///n6///7/fj39/f//fn6//tycnJ7e3v/+/z19fX6//34/fr7/fPumjf5//n7+/////L3///xmTf6+/X//ftvb2/wmTTymzjx8fH0/v/2//z///b3//L5+fKAgID3/ff9//X7//f8//D/+v9zdHX/+vn3++7h4eCkpKTrmDT4/P/5+f1+fX39+enY2Nj2//j5+vfk5OTz//f7++/o6OjrmziEhIT/+vbz8/PvmS/R0tGwsLD2+vqJiYn1+/Xc3N35//Ty/vT//POrq6unp6fwlzaNjY399/T//ueWlpb7/f/++vO/v7/w//7y/Pv69uPHx8aRkZHvmj75/uv979TMzMy5ubn+9v7s7Oz0/+//++/nlTLu7u7rnTLq6urvlDP//uvV1dW1tLXqx4/pmSz1+P7u/vifn5+ampr/9uP+8d7v+v75/ufDw8P33qj+9+357c715b7w2LLimEDXkjnkuYPcmkj0lS///+6Gh4bdrG3UmkndlTjwyJrdtnvilTjwlyTo/v7w+vH00afoyZrtvHRqa2napGH53LXlv3fcnj3mnDn1/eLs0qR1dn7itm/YmlXolkLalkHw+/f+/uL49tnOzs786Mju2abttoDntXbjrV7inkz0lTbKycnqkTb09vrz9+j77d//99rap1bLmk7+8uv20ZryxJLilSvtkiv++d/tsWzcrl7NkkProTzbkyrt/en65rXu4rTs1Zrlv492eW/apEvQlT31nDPvnjLknDHw5M799Mz54MP96L7dyZvoz5H00IzlyILdj0b3lj3enDHs9/X39O319c388MPt2MDww3/lolXlrFPzmyv3lyTq/vL07tndwoHSp0fSrnHTsGDQo1Xtn0jUmzfu8eD+/Nigop7rt2HFnVrAlETukz7y9/X61bLJkzX58vv749XesmbppWT2nTrnnSTl0LHYu4vrlCDl2azHpW/7ljLp5MDUxqjPpDFmIWNBAAAyWElEQVR42uSbCVRUZRTH3/fWebMPbwAZhm2GTVBgQAcGBBFjFC2DccEFGZfMEUdpTLMsjWTKEKbwkEmi2EKJSFmnAuvoqcQDlC0G2WLQblnnWKdF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',
+                                                                width: 74,                                                       
+                                                            },                                                        
+                                                            {
+                                                                alignment: 'right',
+                                                                fontSize: 18,
+                                                                text: ['Reservations List - ', { text: today }],
+                                                                //margin: [40, 0, 0, 0],   
+                                                                //text: ['FILTER BY: ', { text: makeAllocFilters() }],                                                                                                                                                                                                
+                                                            },
+                                                            {
+                                                                alignment: 'left',
+                                                                fontSize: 8,
+                                                                text: ['', { text: makeReservFilters(), italics: false }],
+                                                                margin: [0, 40, 20, 0]     
+                                                            }
+                                                        ],                                                        
+                                                        margin: [20, 20, 0, 0],                                                    
+                                                    }
+                                                });
+
+                                                //Format table rows
+                                                var objLayout = {};
+                                                objLayout['hLineHeight'] = function(i) { return 0.5; };
+                                                objLayout['vLineWidth'] = function(i) { return 0.5; };
+                                                objLayout['hLineColor'] = function(i) { return '#cccccc'; };
+                                                objLayout['vLineColor'] = function(i) { return '#cccccc'; };
+                                                objLayout['paddingLeft'] = function(i) { return 2; };
+                                                objLayout['paddingRight'] = function(i) { return 2; };
+                                                //objLayout['paddingBottom'] = function(i) { return 14; };
+                                                doc.content[0].layout = objLayout;
+
+                                            }                                                                                                                              
+                        }]    
+            });            
+        }
+        
+        //Set Allocation grid PDF Export settings
+          //Using DataTable jQuery
+        function setAllocTableConfig(){
+            var table = $j('.allocTable').DataTable({                         
+                paging:false,
+                info: false,
+                searching: true,
+                //pageLength: 30, 
+                dom: 'Bfrtip', //'Briflp'
+                //dom: '<"top"Bfrtip>rt<"bottom"p>',                            
+                buttons: [{
+                            init: function (dt, node, config) { },
+
+                            extend: 'pdfHtml5',
+                            text: 'Export to PDF',
+                            className: 'allocButton',
+                            filename: 'Allocations',
+                            title: 'Exported Allocations',
+                            messageTop: '',
+                            orientation: 'landscape',                            
+                            pageSize: 'A3',   
+                            titleAttr : 'PDF',                                             
+                            exportOptions: {
+                                modifier: { page: 'all' },
+                                columns: [ 0, 1, 2, 3, 4, 5, 6, 7, 16, 17, 18, 19, 20, 21, 22],                               
+                            },                           
+                            customize: function (doc) {
+                                                doc.content.splice(0,1); //remove table title 
+                                                doc.pageMargins = [20,80,20,20];
+                                                var date=new Date();
+                                                var today=date.getDate()+"/"+(date.getMonth()+1)+"/"+date.getFullYear();
+                                                doc.defaultStyle.fontSize = 10;     
+                                                doc.styles.tableHeader.fontSize = 12; 
+                                                doc.styles.tableHeader.alignment = 'center';
+                                                doc.styles.title.fontSize = 12;
+                                                                    
+                                                doc['footer']=(function(page, pages) {
+                                                    return {
+                                                        columns: ['Create on - ' + today,
+                                                            {
+                                                                alignment: 'right',
+                                                                text: [ { text: page.toString(), italics: true },
+                                                                    ' of ',
+                                                                    { text: pages.toString(), italics: true }]
+                                                            }
+                                                        ],
+                                                        margin: [20, 0, 20]
+                                                    }
+                                                });  
+                                                doc['header']=(function(page, pages) {
+                                                    return {
+                                                        columns: [
+                                                            {
+                                                                image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOMAAACiCAMAAACEVIq3AAADAFBMVEX9/f7////9/fz8/fv//f/5+fn+///7+/v9//3///z9/vl2dnZ5eXn///n6///7/fj39/f//fn6//tycnJ7e3v/+/z19fX6//34/fr7/fPumjf5//n7+/////L3///xmTf6+/X//ftvb2/wmTTymzjx8fH0/v/2//z///b3//L5+fKAgID3/ff9//X7//f8//D/+v9zdHX/+vn3++7h4eCkpKTrmDT4/P/5+f1+fX39+enY2Nj2//j5+vfk5OTz//f7++/o6OjrmziEhIT/+vbz8/PvmS/R0tGwsLD2+vqJiYn1+/Xc3N35//Ty/vT//POrq6unp6fwlzaNjY399/T//ueWlpb7/f/++vO/v7/w//7y/Pv69uPHx8aRkZHvmj75/uv979TMzMy5ubn+9v7s7Oz0/+//++/nlTLu7u7rnTLq6urvlDP//uvV1dW1tLXqx4/pmSz1+P7u/vifn5+ampr/9uP+8d7v+v75/ufDw8P33qj+9+357c715b7w2LLimEDXkjnkuYPcmkj0lS///+6Gh4bdrG3UmkndlTjwyJrdtnvilTjwlyTo/v7w+vH00afoyZrtvHRqa2napGH53LXlv3fcnj3mnDn1/eLs0qR1dn7itm/YmlXolkLalkHw+/f+/uL49tnOzs786Mju2abttoDntXbjrV7inkz0lTbKycnqkTb09vrz9+j77d//99rap1bLmk7+8uv20ZryxJLilSvtkiv++d/tsWzcrl7NkkProTzbkyrt/en65rXu4rTs1Zrlv492eW/apEvQlT31nDPvnjLknDHw5M799Mz54MP96L7dyZvoz5H00IzlyILdj0b3lj3enDHs9/X39O319c388MPt2MDww3/lolXlrFPzmyv3lyTq/vL07tndwoHSp0fSrnHTsGDQo1Xtn0jUmzfu8eD+/Nigop7rt2HFnVrAlETukz7y9/X61bLJkzX58vv749XesmbppWT2nTrnnSTl0LHYu4vrlCDl2azHpW/7ljLp5MDUxqjPpDFmIWNBAAAyWElEQVR42uSbCVRUZRTH3/fWebMPbwAZhm2GTVBgQAcGBBFjFC2DccEFGZfMEUdpTLMsjWTKEKbwkEmi2EKJSFmnAuvoqcQDlC0G2WLQblnnWKdF2zzV/d4A7ZnZ4bX85/hAlpn5vf+997vffQ/ifyH0n3/8P4T+84//h9B//vH/0IWfJfQPj4kL1uUj5Xwqp1OFkFHxYTqaJS5QHCIJRKHBE4ZIkMQ+EiE6HiGCJKfFrtJGRiH+gp8QgzEoZlFReQ58ZDCj1D7SNK+KTJg9OznAyPE0GUJcoCgERpLLJtcJpsR1JPWP8FGt5lVhoJmXpupUPJVwoU+IGUm0SKGwKQXFJMT9E3wcF6pS8fJpt6YFBaUlq4gLPuditJLlgkIv6OtK8/8eHy/wFMWrUi/LSI+dGxsbO26knKYvvLjigrPYpFSAlDn/CB+jaM4YqLpxRUmIanQYZrxAkYhiSLRSrxAUgl658h/ho9GoDliw/t7NT21YuyJMR/wNPpIMwTBFgsKiF5RZA4zS+pgUfrX8meqdLzY+dHThRdmh4zUaEsSy532mSY6jSIQoimEQYpavMQmKurH5CP7DQbAiKX3kium1hypdPfbe97as5ePuHGQ83+flSDQoKogh0PI5paWLc7QcweBvBGklXR+JpVvfa/Od9XkO7qy9Ljz2r/qIWxqG4Yh8hqI4igkiiJgY8JNDlFiFJPVRHbBi+81l3pZTpzvbmjcExP5VH0lsIEMBEo5XSnSVgNykYpYwJCNtPhZTK54/XBbRc8J51rdty9L0v+ojYEDmMYxIh/OPIpkJWfMXjy0tzUJagpLSx5TAFVdUevpO57navY3Vb6p/yojO5/nBSjiI4paMyZpfXjTrpkSlSTCZ9iIOcQQhnY8pzNLthz393nZrW/Sp5ib1X66rBIfDlORixuwtnJ5oU5hMpjqTwiIoLXMILcFI6SO9KnnDTpfXffZ0b7T79VfmDTKe96tQHJOfc8+colK9IAgWhUWpVCbalCDTYtzBSunjiI/5hdUVhgPtB9qsjZuaiq+88sq4YMTNGBdA0FEqHo0cFacuplMuO1e/AkviysVrEoU6kwDhKSigmdPDA1o6YVY+AkYknY+MKjTh+p01jRGutoiK6pLYbIYxEurgEQGj43UpKUYqOFiGiECeFxn/4ESTFJO/JOfirHvmzykvXF06BXYdNtyxAuT0fEhUSfORDwgvOXRzo9fc2Ve1OSycgRWz2AgdHqXS0TSt+zQFjjyv+iMfRQA/BghXViZ/rAJcxIwWZWIMhST1kafV4xc0bTze7vW1NT+xIjKDQLwqJCyMRzRLymXQz6aHB1Oa2efyEfmbOfEzfBgzUQAP9UoMOga+IKWPGlYzMjmz6Yov9tz8zpN3hYy4bna8fNTUeXFRNK0eN2783LhRo8MuPfbpOfOR4SjRRTiIOw9yup8RDpZFiCKk9LFAHp/KFcx4+LMjr34wN3bu1ePHxQWrQbRqRcnd6zds+KT20Y1fffl00ADj755ojhStZCj4OTFaZ2FGpchYjjhJfeSz+cDLYu+UpV2qC45LWHGNJrdk/bNba2u3b7li447m43sqKrYdPvrEyTvOkY9wwMLbR47Dn2s/xIwKzCkUETjMJbOR0BlX6WbfOf6Ou2auXdh0/fanNu7YhMmquuvr6z12b0vV4duvPbkg2/jH+QhHDEiK2UhxIDTZpFDqcc2xmVZzSBIfSX95QNmZgczok9du2bjxsS+Arcbtcrlb3G7DGXeP095Xtu2d7Q/GF3ycmpIcosHRyP+Oj78SgnEHNjFRUCqmL5Gkrg4xxo1iVc+89X1va2ury5VncLjMEW5rXpmnq7/faz6484qm/fEj5o0PCUkOkWNG9Fuv9+uviYxioOotCsVNEwip1keRUTea2//W+2e+Puu1ltm93v4DZq+7t7fb5fb15+2sfvbY7FRYPEIvSQoZYjy3jyLOOovICEuHxTaGpCRsV1GKKuzaw92d3oi8+nqDt7//gNXt6O629pwuu+Gd66+aGhuUYSwODh0xTyMHRuI8fLwHADEhLjxZhBT7jqFfXRWbe/sBd3uPz+OxOhzWMpfT6bB3nm2peujQ08fmzZ0mY+moyASN2l9zWPZP52NWosio1MNxEiIl2XcMxF36vKse73JbT3d2RkdHGOrrW53OaJ+v3fV57dqlaXdOTSMymIvCwuJ5goQUBsbfQPptH3MmWoYY10nTr/oRSZKXP9hc5jxgzXPmgQwGryMvz1Xz+u2vzIzS5U7Nnk1ncHxYcm4kzWLGPy+0ZAoskHjzASpHUvQ5Q4xq9dOHPc7osz090V1lZfazPnte1a4d155cOm3u1fPC1Sk8ksmSkuQsTRPn2l3hxxALipkuMioFmCYXUqQUPuKJuEwWHCyf9tken/d0ntkANppbenxthzdteSZsfEFBAUcGBtIcQWkZhJBMQyFkNNIUyYMQ0pA8LPYEnZ2dzVE8TwEF7gIonLMISzsL5yNICTtISearQ4y6kUf2+FqiRcYyYDx98Lat+zNHhQMiRwEjInGDTZGUjCVYcZtFAialxaAYKwNwMNSvGdcM1FXMyMBLSudjau7WSrsz2hxhyINQbelpcW3ax4aHEwwg4v5ajGqGgYilGERrl2etKxwLKipcvOjiCUuWLcvHLhNBxCAjOZjs2rH+uooZpy+T1MeluddXWg0RUFMNwOjo8fY171sVGzCb40iKkslkBKNl8Psns5evhGFNIpRJiwmGGXW4HbUlTrxp1urCxYvn5wz5OChmsmJo43HTGEl9nJm8vRKCVGS02x2nfL7mtRnTRuYGBoIn8H3KH3jLF02eooBRjaLBZoNZmx6vC6a6ujqTbdbqonVZOflDPg6IoOYo/DbC0TZJUh9XhGwBRrszAiAxY7dnR0nBreNHBQIkCT8AzlAT1q2eDoMo/IYTG0AKi0UhWJQTZxXOX5mzijbShJH+BSNFkHstA6EKWiepjyNDjlY4u+xOM0BarQanx7XxgQJteDZGxJAITShMhFEbXFDsUHR0dACi3mK5afXkOVkw5Kc4/9VxbqjmqFRyuVyj0RDEpCFGGD9K6mPcuLdqgBGKjhMgDQZf6+ZL6EB6BqydoiaUJwo46OCAEU0NDZaG0jljltEIBC1EGCg5OTn3V4woCzPqRca6ckl8hHJCwbtJiit5rNVpP+00gyJAfW1b4nUQfpwWZ2LO5Il1eqUJ1w1soUXoqLOt3ntMFxi+4I671x/5pHbza0ePHn3ttReeeurapgdnjg6PvXJaQlBGekDIuOKLbYK+YaArXxMkgY+/z+jaHj+DYIOCEEkFLSpVmMSWU6FoAFewhx9OCmFWFc9eW3vFjj01Ndau9lbQqcbGyp2PVx+qfeauBZdPGwHjoHAWTZgiQOKKuw9LaT5BSOnjF26nvXOI0W6tDTlWoE4HF7PW4AjVwz88Q2xQKDpMpfeMf2OaJrVk+6bKihqXy1XTnWe1AqTLerC3t+qGyo9eePbBpLlzY9Xhqfyy6RabwqbHZ0iYGCOdj5qkgLXAaI7Oi4aMFGur8xPNRfer1SinELfTiXCw4bFMh7KjwzZ5GRd8+R3rN2/adtDlqqratauifltvd3dvb1ubx+NxW7vrKzZtXpgwLzw4O0EVtKYhESckXPQQ9BMk81GjSVKtPe52GszAGB0RAV66nVvlfLp6wpzp4loBuSiGqrKjruPDSbFRaxfeW/3Qrtb2r9vbYcPp+Ro+9vWVwYDL6nRaz5xpc1VU3vZo04qw3GPxCavrxJKjx6FwsRQ+sn5GjWrhca8zwmzAjGaQ1blVJmeDC00mmKrpbRbxqoWgrKtLnDM+Ni6zaffxmqpdlXv2VFZWVFQ01tRAxLa1dVvd7taqNl+f3XPwjM91fPP6maoHMvdONFkgwuEkWYS9UvjIsn5G+cI9Xme0e4DRbnedeDYggdVOMQlKfDdYIphoU0JXM3kCn52w//pvd37x2O7NW48ceXP9hq1QVh+9bzfM805Y2085uuweV3dvl6+/331zde1VmZm5OWNNkNE4pYVyKXwcYlwvMpoHGWtOPBsXxOVPF/Q2Paz7/iXOpFxsNHIzFj737Tvb11/18Iz4gGJeFhweF5n54B3XzNzfdO9b71Z2n/E4G2t6e1oc0Y7Wytu+2R+vUa+a02HxMxYRoOH3Ea/ycvmC7afcB+x2Z5nBEOFwtHjPvPcAmUp/MKtOabOYxHxS2hT6ycwIzYKnv/vu1bWjVSRLg4gBhQaoWTr1usxvqm+usvp8Bk9N456K+gP1h4++rFqVQl98E1yL1DdYVgcxDH67zDD6+LuMnncf4C+ix8AmHsqp2ODoLaYiJkib8MHTb5YsvVQlMrLsj4wszcpzM2e+/NTnleZOe5vzRJ4H1L5tx9br4tN0y8fqBaVgmr4cEZx/rieBj1v8jAaR0dzieTeTTyWyJuLxr/+qk1LxYRCBSFVI2sipI9Ti4Ir98f5IOYFoVhOZRoYueOWF5qq2vp4WX7/v6/7+M70PbT6ZrElNnZNY16EXViKG5AhESeLjFjdmjB5gNLt2YMZJeoCDiohrq2WslmRIPlIlD52qVrMiIan68Z5CGrFUZJomdtQ1J5/cuNPtsJ/ps7u9Lo/Pteutu2Nn8OqL10DhmY+0iENIK4WP1xxye/2MZpDD4bodGOlFClEi6OplBIcYI6eJjFTxkTQNiD9nhPIVOiqp+NOYpEv21e7cdqassRHWldb2TnvFoX1hQavUSwoFE+7KSYRIKXycubG974DZDA2An7Hm6F18ILu3w6K04SbMJMyKwecfsSyv0c2ecREgkVhDezSRkRoRkJ6RQtMzHt7y9kHXqdb63gMwHuqy76peeN396fSxvcpZWoIBREnycX81MEY7TvsZDY7GK2aSl7HrYG5os+Ed/JoJCEQgloB45S+KwjaqICd/ZMTBK5OxGQxBB8546cHnD1e1tvt8bZ6y7jO+torqphXBMpVqZeEyRosQA4TD7iMw+n7GeGKzyGhKxE2YIhHuO0FB4jsjEWtUq9PBRrG0En4NPBML64dOTc8ouKVg/70P3eDp7/+672uQr33Xpg0jb82+LCWIgJKj5ajh9FEdrC4OhNtTXn7X2l9/oD/PAIoA9T4VpmLvn9yg1ENFFUo54k+KHNBLUzM3HHpn02PNzZ9/vmP37t2fV3+5jzYaESXGN0LDmI/AWEyQo3Up62+z9+fV9w0xVt0br+G1RdCe4Aukk8ih1/jDV/uR0YhUN5bcfff+kpKSzOuWXjr75P5MXXEGE0X6GYf3+iNJAONooul4i9dQbzYMMu7aKtPyCR+aBIhVYfHAmo31hy8IoTwoTWSISsayeJaOoCCFh6en40E6CRr2eQ4fCIwhxiMnHIau+jwMKe4fK4+oGT7yQ0GAvR+MftH5+iiDdFXpAumoKJ2o+zMCUwN5VIwRh30up6MJMvmSEVtPWOuBsVPcPwLong0yguCKxMVxJccMUJ3bx0FlEAhWS+hiBxSvikq9jKbTB5N2OH3kdTwhTw4ZcW09MOYZMCNGtL7+bDBLMmMbYIBaiLTaP+3j4Cc0YmUBAaHjaFAgKFSGjMBYPFiXhtNHyBBgTOZqG63OToM52s9otb7eFMeSMbMs4t0YHIPO10e8X+Oj+ECO48S/rAgHL1lcapCfcRhtJPBdfvLkXO6RUy0tpyN+ZGxeP88YCNdHbcI6hADxz/qIBsSC8FEGbQEWTZPyJDk1yEgNp48qJi1Anqa65Gh9RE9EXqdDrKzQf73+yng1u2xKHfRw/rbk/Hw8t4bNSMyYwANj8u310RHRmDECEIGx+eVxq9gliSbFoiAKt9HnmY9Dj3/C37GquARek6bKBEYHZhRDFYalu+8KLeDHNAilDEGJ+4R/s4/GSJpKG12yI88AjF3ACJBWq3XjjaMCkuZbTOsQTkcS/at9JIDx8tH7Nlm7rNEGu3WQ8VBYqEqz2JS4nAFGbqCs/lt9VGto7vKQfbdZu1yd0cCIx3IAuVnH58rK64o4hsJGMv9qH9WaFO7y3M9u8/gZIyIcwOgw1KbyuWy5YiWJSBJRiPlX56OaEhl3DjA6HA7xok4tp4o3lk+JQaL+HXWVplloNH7996lJMhnKvpL+pLGsKxpkhns6zIaIrsZ7Q0ldbFG5+PMsQP5VH6EzF++vGwYfgfEHXs48tm0qjuNJ7CR2JNu1pZAYJyYRkMRRLiUSiUKiBBSQoigJQqkaJUW0UpRyVSqt1EO9aEfVrkPtWrWFTh09RDuGaNcTGGVtN1HEjm4UxtYx1K1sbGgbYxzivp7TlGOAVMbx/cOxrZfn93nv9/yef+9nI0B/wijhGVHA+MiDt918y633Pvn2Lfe/8P6z1YyU1N135y+Mm23H688AxCzj/9CO/BIV/3OdMBgVmMoM259485G7gR555NabH7n75kc+nKc0huMP3CSGIFBGwHij91WAKPqf+uOfJ8zYsEhkKrO2PgviHG4D/ribb7sfuB/v/fAIbrQ+/KgYzfombrgds867/6U/irK6/rwcxghTmbvkqTdBxOMjd98BVmLuuO2xx997zqWxXoWDqCirG+2Pwuyl/+t25IWIRJlImz8ymjUan7vxqTefefbuR8Dgf9sdj9z20DuvFo6aCwQwTm4w3mg7ZusX+z/aEUHkQMgfGLWoVaPxlO967EkQI/fkky+88P0LT779GGD81FyF2hU0lpFMdoPtmPVtYth/2Y4bUqwzKgTXSYZxRi9gfOjxjz+++d7H7r/1jcfuffvFC+f22NS9MdhnyCLKroe4rtkEf97ls4wgi+sLuHH4b7QjsW5mKt1NpFSoJfMI3u4kQthCQHl5oHk5f5GfwM782MVrYuL1tbXXd+/e2dW3p0YYbA8jAgemwDXvkii0Hhko0GohioK0Wh6aD5/n9/lzAgjiDyUiGZDo1/5foBPKlYzBpqcQFOgXO2Jx4PjIs9k2YkBFfLYirVxwA4LWGaVlhFZKYVq5aJ1RaJEhmVpWYpg0B4meOXmothCo9uDBw0e6F+pO0hgqU6tJsQsPUjIjSSKIKJN+Y5zFBMBTDjb8Pn8uY5DgIYz/FfF366wYnSulEkQ1FIWIeEZJVmwmwgv+hREVIQhIob0RRj70NMOoJf1cSKtdZ5RIZBs+CKBRFWrguDCjd6pUsAChOIdfrafIaJFBrtLhQSVFoZgCEfCrbzgsFPKFglEhLOR9p/w+fw5cCQXHWcEwmlXQaZOrYjUczygCjBspcJAGZARvxLny/AhoasEN3HJEGceuVOwz7skvoAO/DMk84QajC9iZQMR7mezyeFQm8+akbEGpPSAGFW01mJV6vUyN4zwL2P5W6O8O/pQRFwQcY/lFMigT6cszbgjOVJAgq4whAwluQNm3u8SyPV+dyKWN2EbjZhERWCSWopZQCMQy0LwIDEWBFQkhEpXg9FDdwqEmSpd0VOESnlGikGR1HSAgzGyz+YIyZ8XKAnSBGqNFfKgvELqhDVdzVplTCELdCKFEyDN6vdG67+pzjRpLZvkXaD36CEFIkVdjMDMsIpOZzWaGCTH8OEpRlMWkp17Z/+q5o0OUTukoQLICrcEbPCQRZFatRCgoJ2+FmChTdzJRRuC2kxWrwWoOfhbwQxB/V0F+YdJCmbsVlD3kswX5Qv+I0XF08oA7FCaEwnXGvDwEIiBC6sWVRrWBYq0gNhMwehzWaCxGYrTS4rgKVZRcu7at1qTEzJhcBOI/lVI5kZUK/FsANpkATrAFUAJgL2AfeFQ1NA1lVXqTfeW7bWcQOwRRPCOxIZPHFAgEiI0YUCUh5UXcCCO8zqgZ2/Z0c7mv3Q6vMxJ5KggiCK9YjOuNBixY6TAaNRouEtGQshyjWe2HsPhNtvj2nc+eKuSMUaNLLgLdUim2czQdj9M0p5JqCGDfBNgPh8E50OEEUqlXsy6/X5qVSwV/svX0Sd06I/QLo8bkMwViAc0Go8nk9drtXu+NMGIEgqNRI/HDxL7dCzSNE3apUiuLeK7Szrzo8TY86dE4CohStncu6Uq0tYXG3o2qHQ4I97RXtrWtDh2sv5hUhB1B3MHqdGVEvCDU63EqKcun93CRUpXTh69G2KRPX8nOpTUqNtFuvEdginjENjxxnLXlKA0ujcdTf2HtEORwGMWlOGKODARxhS+ZXF2ttFl7ex2VFjWmUunL2oJsW7snwfoYUivME8Ab7yxuhhGRShDM4KD3X3j6wtFBPwpGAFzu9eHyAsh7cVXfpjYT5iZCxbwymF5ND5XnVjGssSaKmRPHI+3pqsH8msiqw2ps9zFJnS6ijlq9vdbi8t7ceIpL61WlOXJltPyVJorVV3rU0VAZY4ga/P6mwVdyrZhOSisNyuLc3O1bmsej0vhUzKbShykPg4TSVre7PEbOXQS1a7FiLhcSzh8fbKI/Lc3RQ1oUmJr27zDmqSQiArMW7H2zZ+3VQ3EjPwB8OsqixXU7Dpwt6a4dVJeGCuTwxR87Dg0Nd3aWzOcr6BoNMwYX1e7Yf3T//vozBX7j6KhPr/dwF79ayTd8NNx44NuhkE3j0Agwd2F9a89bO2rdc5VJc5ExcvGr+jFrYX3J2aV6N6wpcpHcwv79p7Z07dhfXf/VwSLMhJvChNTy0XzryMhM9RCNimEtjSGymsOtPT1HuyuwCAXmnCiCgmnU5hn5jxgQSvWZ9z6c7+ufh8vEWoxyBS3u7edmZxcbPrxUr9Ydd9jgMx9MnhppaVjsnzhQq077cLG8ouNyy2zL0y3DgdTVUhWuoCwFB7/77sihngvXWibP9qZi/lg0d+GDycXF2cnm6l7lQIgQK3+43Fyx5+vLVyYvn/vEHnbL5emvJ1t2v/zi6yDRdz/mm0NCCralhvZPLC/vnF3bdjBeg4ohi7l8R/Pi7GxL/94jYxgqkIowjPg7TjAvrsHg0qL65c7cHQ2t2oTG7AiLPVUrOy/0VX8y8/mVr6fYsrDNNtTX/8TyrurqYzsnG8e5CA7raw53tHac+vDC9lQqRAmVJG21FnYtHuu8dvrY9M6WjoDR6yWqFj74/Fh1d2PL83Vuj46t1Nedf2J62+W+6eqvZ5sLLUabVL8yMzPy8YenZlo7ln4w4Ff9qM22Z6lltnN797GJ2eb5XOPVZPvg8OWWS9OfTL/X0FOrxvJcMsAI4DatAGIk4dGKxuVprq6luZwRmXs5se/MgdnOk2Fv9MSPKzXJMkYlHux5drmxML16sbtr53Z32iGPGOVaNVb4/NqwXctZoFDgXTVW8cXjp7sanwsNzDTsVfsqKxP63hPj1qvHz3T2l5TrdZ52feHnL364u+dkcfHh0/31mB0Ws6VNufUtr55Ux9zjgwbnAB4zNg2ff6+1t4wpPvL5tbNDDk9Z+6G+K6cOFbCOuubLR/MNEieBYVLeTDcrOUyQsLdu4r3adP7zk93WPMsc5/LUNs4ey00e1+udgWhowKMTD5564otavK0tQR4ALaAIkmTAyVJs/vM/7Y8bCkIuacAY1u/Z+83W5ufEbW31i3vdyUTSV3bcB+OmMu5Yw66PGJ2V01Vse/Yh8CUM1vdK59YOM6QSM01Wbvjp04ciPks07ojo2ID5o57ZmfI2cCn1/Nlv2+WoL129ZeIkV1lZad4xeemMH3dqMNS5zrg5/4FNJSHlhuELfZimqHO2w1HKzJlcivGRZ996F1+dM36aMmJUmQ4fBMXcYzO2u1LPTZxf0VUGUvLkqtpZe/rLaXtwzgTbYVP6eM3el584lisgicKvd0zZnI6CUKUudvBk4eCxC+dOeHRRWpdbsqV/uregtOxE5xMdDo2LqqoZrex+8L1CTyCWSpWyeo6Mnnx1stuQmqJXuYuPOo+nYpGqxoZTvexoyhg+MrHloBvHNYbNMaL8JAuIm4MNyVjP00er2t6tb9k7lTOmlSYlgcM7Gy7VcVTcfXuOn9YjNuzoEyM1VISWp09cWq6HUygiRWBSUf7q09UKZ5QkBI4wZioa2ff5K0anBIaFFt3VYv9cmf6zxom1Vz/f+1TXCVkQkWvdJfsmTjBqvae4p6GkCRKQGmNIX9f/fCHs48YIgdhQ5aOH+7/Yg2vGHJjRiBLqnDRXvm3r9mJfQlwjrdjGlzMctXKbWmveYFSEBaHIwa7XuqOumvnX137QDcgozl91ov7Vfa91fvKuzlTJkCECNu1/YmRKqJel8I8u7etAbOrrGEUOmmQAY98rmown2oJLaEfauvDBT2vnPri886nmDcatz59gok59wQYjoWLr+k8fEorMY2HgbXXIoB1b957xqaEgHjJaTJQg7N/zwVPdcV+Zw824tzWUVLWZonRYvnlGinJByjLz9uXHTnf2jXS+dqGV1XkVilh6dW7+1JZ9z46s9CZYyB+FB6Z5RpZIwYOX9h2lUP+vjDhgpEVhmVYZH3mqM5fmGUUmMxZOc3v6rl2qHvqobmZLVy0iRrRkbsnWS68o4s6kO8MIkbQcxhcaTtcq5IY0J3UJwjZ4R8OloXZ1yoXjmEGGQyQJGA/blZGqXk9TY0NJbsIUJ032TTNCFGVyMYmizq27tz594fWWp186PYWHWGdgoLISi+d/8sXy7uExVmyNij3Htu6qoHyc0VnT2dCBIiQC/Z5RJpLzjKdyzbgEhSGT0RDmHCu7u46kdBF3fcu5QoEY5xn7O3PZAM66OzOMBtqeYSwEg1HE53KJrbBhuH/v0IDx05hcBPgkBTHtVPMdCwEVkVtV5h55asatM8VQxrtZRghSKq0qDv/s9ddbV47MP7cyfXrfYXOaETelNfDcHIUebHzq+TrGSVulzNGtu/I9q2lOl79rebtcAq8zVqwzGmgRKtLqNSNPlBRjPKOIcZGKAX/H07umPp0La1fOnyuEAaMst6QBMNpxRfFIw4xaCRiLSMVCw/OFuCBRxsBwqAovGt7yRaEziUdjo6UuSFxsFOfvenzYpHJpIonxXQ07algiJlT+LcYqF0d+cu3cHtgF4Xj5tuWSqjSe4iK5mnRv72rbiae37jBI0pzEzDPq2iImauH1Ld2wSouIJL8wFhloGSojKbrxaZ4RIWEJhcf1LvXX13oM4l5MXj+5VosCW5VVlSzyjBJl7jqjmXNr9HVbAONAGVexRxws9sTrzrcchnUJcxzHA6SODnjGO/e9pdZXDuiZk6+2dMdZc1yoDP4dxoKgr3hk8WwRPFp61VTUuvz5R2lcpbrr2/FUilhNlF9qqCdRMHcztwJbdVaGjOM9i32FuMrwe0arjNSQDN24NcsoRLCACW5amu2rEM6Jx99anKglxYhclGFUBPJCuSPLgFFp5pq87HO7J57DxqqeO7B0kZWZAuXbrvUUesrCasOe+s/Ymwxs7g4wSfAHg/T4scnmWrFOHUV9+r/DSIqPF3a11FeNOvGwT3m4ZWdhTaXOsHK+8/Cn8SrNZ10th9EY56tkjj21t5BU+t3Tr2/ZXpBw/oHRQAcY/7YLvzDa4MhNvQs7J44Ebp/av7b8xTpjwTqjuH1wg1EdZAt3v1dXXDzeceW7M+woXKOuX/vpLYJWFwwduLxkCjZVxgs/aDnmJkn3/N7ZmXxnkmdMbIYRgWQWCyF1zbXD1Re6PqsaSyrVobahvsUlszmsf25iX1fJcHX1yPK5CrYSJ5zs0ZfAa2Dz1SWLVw5UEHqJVoxLtTnJ8eZ91XiwJiDA3zVHFemehmNVVoivQBjHbxpzf9Z47VL3wlvnl3e/vqAe0JBk+cy+nlw2JkwOnpqdsSYk8rDJyI7v7d92pPqt8ztbC/CU3wWXv7W4s3VhYceulsmlqC3Hh9R81dVw9tuDwxOL2z7TKwmaJpT6TTxbZRkhqc8y9TWYeHPvskq1JpFfcuXrM/6cZNORzq7JtZ+uTT4/r/a0K4igfvqld9YWr0xOnj96qCjzXjEu0ML62g+uDNPSAOGlsaDRXHV2sqPAivCMqEIl9dNT3T1XLk9e65rpu/KVmxWhaPnSlbP5rB1rH/r6coc1gYsjEVJ5cfrc5cs7L39QX2FhEY1U0nTyrfNXJs9v2dI8nB+TSz16b/n25ivn165d6JwvB4xAm2XkXzGCoJCh/NulH8whu0SKEaam57766ow9NYojr9RNn9rVM3zIIHDMeagg1dq/d3q6sXFmZVB91WUToQHAaA9e/Gqp1h0T4FyNAldyg/VLdVYayjBKYZiQoe6TRxv7Th2p+PbsSo1EGtI7fliq9+sI9bv5KyCp3iMebSdF3GDd0q6RjoPlRRTlAP/00ePzRw80dk4/Z0VtdhmF42h5XcfZvlPVh/wsRcmAKOC72gTjOiThoIvcGo/jXRssgEna7KAcfq0cwnWJcFPN1JQI+CQKHBFPEJ3uPzAlt08VifHSUlguwwIS3B5QUP6m4qKcPMqqHsDZSG6xw201i0Q8JAbDYq8E8Re4h3Ix49CJiiJEGkz6iqvKSZ1JbSSx/HxL0qcUxwKYjDT488uLc/PdXJiU2VOVSS9JFo05zHxFBTDAOGpUs8b8IgtwtiBZbeb5EclAWixmPDKgw60aG2wTokajLpFgKU0ARRIejtNoxKqyAUzanh4VT/fvGookysravVpYIIFdpARHtbhOPxC2AKu0yvR0sjJu1nP88o6Ej5cXqrwxuUCcAOVqa2+yFhsVOK4LGaiaWJLCTCqKCbmceksMM4YYu4qt1EXGijDGSDJ2OxSZazdxnkRSLEcpEYoJJC6voRTHVaM5tBVd98Ojws34cXhI4DJF8bLjOsgM22AYMN6kiySDlEmcg3HWgrExg9rNUair3ePUTD916dCcjuEguT0mVUhgu0gIOl0yOeBjcKhIrcD9x3U2TcIn15IiiQCRocDXZye1Yk8kLKOYm2x0SAlBUM5NypgxiFB6ZwSMUE7cHDebTJQCssiJNIcDf6eDCcTiDMOlw1Y/AcNkWAhlPrHoj9FhC2oLFKEwzwijm3l+lPCcgJFUeRhc4JIIVMCJ7QyKSelVisKVMiYcVuIS1KxGxTkcI7Hub2iuCElsdjj1qRzFaEMOqUXFQYpiKQsDkaRHgIZYIYpTMEqKYJAz7FQqRSRpsbqLmgwil40BHUOjgcQoTJkCEEMDWyZ0uAEz4QyDe93qaEFEV2pDGU80GtI59ZyPNMjyYNgCA3uVEwY1ZEq3h/JUpfyLI8COtJt5tpJIMoxWfzxudObhFtyJYBArsNvwIOSlCLuA4iIDPi4UgKUWa8hVtTTb2BRhjIrATSGFWA4jEi2J4jhq1GFqi0kKmWDYy2B2uRKGAWMewthwVufKCYc1qBaFSiVqhAxgmFGGk7iOi3nD7mhKTvsoA5xyETQMq8MwyrDCKM0iGONLDAQ9SnuAUKZsuB2GXSoqTFOInATTKSFYnQNrhvJNMSJZeZRKSAT/ulbGu7QxDEVlWTEMY+I1v/RDU+g4jkul2U/gZIVdJwO/AZdWZCXLCjiOCUL2q7IhK7BHCQSylInAkTBz3czoTvOpf4PAWCwWhsLzrufYDKPyOkbZ9YxZyMH8AgtjUnrXGQV/yYj9BSMB9FtG0TqjRPkHxvUZDPHnjPjPnJzBDoMgDEBtYQscIPGwZFf/wNv2C/sC/2On/dT+cQWa0jQaF54HAWvjU+RS46Bj0I4WR5SqwCvnew61g9oRDU0RJb92rG6Mdiw5U9Epjmo+oXIkRSr7boPPkaqj07FjcI1Pfl789H1UReO4hzgaRJBxTBvBiIyNK+e6QUf6x2/YKy6brqPVbVlu760cOkUFoWEntE4WqK0+ZPMkbo441qZ1Un2ANrCut3lOFH8CTT+z3pm8Oq7VTqskQEwJJS7ZdRORU1tAtkNHOq/uu1PLdGW8EN1MbxWAdWIkvl28Z+y96pHsSHRHlO91vAfQjpEvYvoX7UBS5bX5MVrGqm0EQRief8bDFL5iicU9gOGqtElhBAdCmBNBhdUI1KQQuEjjNE6TB/CLpMxL5p+5wyGJCB6kvd35/9udb3eLw2vMjFjiagl+Br/jt0Ll/s949Qcjfkcxvc67wPzNmBpTifRGxn/PMZDzoaFnG4JmEWKOALQJxQaaHM4sXQiFwMERO2ZQpw63FszJPTQN6QPckU9lL99z5aB5oJcE9JAyuEu/+T71FKBCt7AJWCCy7RVq4k01s0CQs821AQZUbv8oLrWeyYWgL1QUev9jd/h6Hgy61CYuQoAACTN8/mtKIFV2C8DdUhrXLZ2iPrtDk1UkjH7dPJ2np/UYRAOaIUwlSY0k09318YvDTKxKqd0wpdwSaNzXds47EoShrAbPhDe4bF52CU3J9SJj0GSI9fHmbru9eZkcvYkmBltQxDIf2ySCNKh4JG6KiWQe8Xi8XoskWd00qV8ACeKB0+3qfbfqHgYkZN0anXX359V6bGLFjppYqESUpX3otgNQ02XOpaG2IT1SJz90h1KqugvhCKN56q53+2F/WO0U850UMFLMxQsOZmTTWk+qegtaZTj/7IH28Hmkv8gS0NJp6L2MZDyN++nb7UmJrCpaZ29gf/j0UQqtoJyCKdQ88aNheD70JpQU0RZWz4eYhORw7H6xYcUosMJANFHCFkkRUDyAYJVqISlEEERECRaKIFhooViIoI02ewAv8I+w5Z7s3+JP3F/uskV2TTLzZt57CRamt/f3N0YC9JxbEd3UKzOQjOmtYT8yzTMffidgEIIcyP3jS3/LTOCtJhwimnbdRLU8BKmbrAiHx8jk1FETIBBNhk19bt1/16PlqqBaoGhoyt1EU1pYDAgMTOiwZ9/Qv0BNbvfAtPKmxBoW2PvC5r8wfmX88gvyv3WcW1689QmEsNb4EbzfK2y4lmTtR890xJafSHoPw6r4Pc543tomgtrMiYVXSeLxvd7x4ugt8ZpgkBwCjM5mNKpFlkWZ/KyQohzzFTJO8nBIFgAVbGMM5sVJ8s4TUIyV5HlAQOizEeES5ZJD/EAGWZ5LcKNHVuZ9CUKcwwpbZtVs498YETD8cCQxlwtu8vEmFgo2ZfhRiElTOkjMCz3pkJ0LlO11pYMoAOQypVSwokopFTp5VE2AJl1o128lt/hbhExMp+JfLXVh5HH+cmr00XX6Z8Le7rpU7FmmnpSxgjxeKXyKzEYf4Qvacwzb+1duBcNfaNBLO8z9KzGOhGqFf40YL9V1aRcUnrg1tnvBniK3f981gIhLo9f/xAHW7KyWZeVXNpoc0cnOrzJbOc07KZwCWR2gTybaETyxI5JKlbLRYxRglS5k+qM/8U5rjHK32WR3/WmBGR6y4UnTNtpPSzT6YT0mVhWqMlLPictctHGCt7BekxGUNeumlEePEzbM+ZGjYDgIz5/nGHesWYikYoo/7pA95iJflt3dSJJWgHOIR/X+rUcO4uPtlcDI2JKHZfjXeKiiEk9/eoyzUwd4d6Bwc9riID04VONoliU9ra95txrKQxRMK5yRgD4bjlshYVrOzocxfAxbDedZdQshuV/BX5ujjHOf6Yq9FIbBMHgQvxCBZENwH3r0r2esIdAHyoZ0huEHLGt71kCNwpXG8u2gFLudpDuK/DMAOdq/3kFig4dUvrxlbCytZ2/jcqPbWROTNr4bdIB/c9K2j401tVL1xWT5BMJxWPU4tLGWw5TClbDJMQSLUDaxuNe08MhE6dwN4pjR+5kDXV40J2AvH9qTRNfgjW6q1N+j8SOyO6n6eNas/KEaPRQ0fwGFIuB5cVhDv1+Y497dkB3VzaCdFzZ69BTVKvd+Y7xN9O1DmIyYoxWK1Rt7jNiIJjfGlsFoVU0CSm1Pr2RNdaq6rueIdtiwwApOnYFBqTTBu0gAoxqCQBzIA39KW++Wo9W5Ef6eIiONQPgvPyccAjs9ni+FwRu1OmtVVzEmeX35tYeyTy38HZk2l35h7mMZUzhKR0h5fJY4T4c+GtPpsYrCwo/+b/qcvF/vWQGhBXw43dw0EvU9kUwhYFHtlHhyEzjm/urArlwQLGAkkLxJNYDKi8Ec3B72zoZgQKYzwBjDfqajQxpjbLhK0H0P7OhGvjeK3s2BuxEozywSJV/BMh5B0xoaeR5BHJh1QjxiAfw0443C2XAZ/o5+Z0fsBRNfIoK1iTkbd7yKCjoExNWp9+s96+NxH2XRRaso3graBFZFi1juTuXhnZZQkQO4qq4FtmmBeTsr1uzVjLYFFlSWVcWJYn1pP8yUnSbAiloHj7c7jNE0+Cex7ttc70TQQ6P3nm6mMPWzkHHhFya1yrK93q1i79N0dnLuMtKgy+MVR3oIsuYAJdJzi1+sifHGgGa4D0usQjnP558CAUYUt10sryv7ZTpGhdBMlCjHCV16RhwvhUhdpwoQLlgMXFR6uWuGghYq4NVhKlibQG4FY4wqbo8uTSWqwwUXYWJzDoaEca9Dmna65d+L0c5yi2MT6g2Usc3q0GUMCmnPuja3w91c9gaJk5O6FM4GeTkua3I0DypD9kvTkB4rBoZCH+EQiqwtpbqpmwLFrMKl9gX7194V67gNw1CTAqGhi4ZCf+Cpq5fCgIGgMJJBcwEP7pAiQxHAU6d8QH8kY3/ySEkXBDridDFym+nACWlK5DMtmTIi68dRjGn3R4g5TdNPh9+LeGQxTBwYuSKDA4fn4LDrqSHfdXbEprscg0djDQ3zHCQZZP1W1Nyu90gwBHJgz2EZ4NdfTBZ2S8vfaNCf9mlYYsLl2rHMt6GzMff+P/VerO7nqaOYxs87Q46tGoTTfFxGa2kMJ8tc8MSiuR+HgNSfLZz207yzoD6DBAFD5F0eXHhLVmRGGo8jSd/Aimk0Ah88NLJDhmaBxEdjZKglmY9jLTnMx9sBWGP/5cAiR2gJDKJkgzntJtkifEdiF2Oai2lUB5hu1rLLWWwUcGEH4gX/QGdEHp2HhpASvEf+i6Q8S8pcyev6h2+Xju/u3/+MBoRe+/RKuaq8JAmC1Jnq1UbLn4fx+o/fifj1Zz9SWlLuszDmV4UXGFWkdYyZUXhVH9plmq4tmNvrxxPGSrmqXNEr/NHRaYtOlzZKg1jzNQ30UkZ+J8VHMVbXx45U1PvIFauXeJfPLAF/IomIqfZgaeXEd8ikVFKg++C6HXcRydUq8xwTYeqWUa4ISFSUKyyvnPWeay78WxfHVBWixuv6lDvU2CLta59+K/e0OKYLW/GnHsdMmatihEx3PNl8agGsKzHe9MqCpbw+yTF2qgrG9e1RP/8ranxSHBVJ2la0x8J6yStsZXtKe3yrucVxi+MWxy2OWxy3OG5xfC+OL1mKgy+Q/ZFVAAAAAElFTkSuQmCC',
+                                                                width: 84,                                                    
+                                                            },                                                        
+                                                            {
+                                                                alignment: 'right',
+                                                                fontSize: 18,
+                                                                text: ['Allocations List - ', { text: today }],
+                                                                //margin: [40, 0, 0, 0],   
+                                                                //text: ['FILTER BY: ', { text: makeAllocFilters() }],                                                                                                                                                                                                
+                                                            },
+                                                            {
+                                                                //Filter section
+                                                                alignment: 'left',
+                                                                fontSize: 8,
+                                                                text: ['', { text: makeAllocFilters(), italics: false }],
+                                                                margin: [0, 40, 20, 0]     
+                                                            }
+                                                        ],
+                                                     
+                                                        margin: [20, 10, 0, 0]                                                    
+                                                    }
+                                                }); 
+                                                //Format table rows
+                                                var objLayout = {};
+                                                objLayout['hLineHeight'] = function(i) { return 0.5; };
+                                                objLayout['vLineWidth'] = function(i) { return 0.5; };
+                                                objLayout['hLineColor'] = function(i) { return '#cccccc'; };
+                                                objLayout['vLineColor'] = function(i) { return '#cccccc'; };
+                                                objLayout['paddingLeft'] = function(i) { return 4; };
+                                                objLayout['paddingRight'] = function(i) { return 4; };
+                                                objLayout['paddingBottom'] = function(i) { return 14; };
+                                                doc.content[0].layout = objLayout;                                               
+                                            }                            
+                            
+                        }]    
+            });
+
+            table.columns( [ 17, 18, 19, 20, 21, 22 ] ).visible( false, false );
+
+            //table.title ="New Title";
+            //$j("div.my-filter").html('<b>Custom tool bar! Text/images etc.</b>');
+            //var customRow = "<tr><th>Month</th></tr>";
+            //if( $j("#txt1").length > 0) $j("#txt1").remove();
+           // $j(".allocTable thead").append(customRow);
+        } 
+
+        //Set Tour Allocation table Order and Paginating
+        //Using DataTable jQuery
+        function setAllocTourTableConfig(){
+            var table = $j('.allocTourTable').DataTable({                         
+                paging:false,
+                info: false,
+                searching: true,
+            });
+        }         
+        
+        //Creating PDF doc current filters values
+        function makeAllocFilters(){
+            var allocName = document.getElementsByClassName('allocName');
+            var allocLang = document.getElementsByClassName('allocLang');
+            var allocCountry = document.getElementsByClassName('allocCountry');            
+            var allocHotel = document.getElementsByClassName('allocHotel'); 
+            var allocRoom = document.getElementsByClassName('allocRoom');
+            var allocStatus = document.getElementsByClassName('allocStatus');                                
+            var allocMkSeg = document.getElementsByClassName('allocMkSeg'); 
+            var allocCheckInFrom = document.getElementsByClassName('allocCheckInFrom');
+            var allocCheckInTo = document.getElementsByClassName('allocCheckInTo');
+            var filters = " FILTER BY:\n";
+            var nameFilter = " | Name= " + allocName[0].value;
+            var langFilter = " | Lang= " + allocLang[0].value;
+            var countryFilter = " | Lang= " + allocCountry[0].value;            
+            var hotelFilter = " | Hotel= " + allocHotel[0].value;
+            var roomFilter = " | Room= " + allocRoom[0].value;
+            var statusFilter = " | Status= " + allocStatus[0].value;
+            var mkFilter = " | Mk. Seg.= " + allocMkSeg[0].value;
+            var checkInFilter = " | From= " + allocCheckInFrom[0].value;
+            var toFilter = " | To= " + allocCheckInTo[0].value;
+            var repsTo = " | Rep/TO= " + gRepName;
+
+            filters = filters + nameFilter + langFilter + countryFilter + statusFilter + hotelFilter + roomFilter + checkInFilter + toFilter + repsTo;   
+            
+            return filters;
+        }
+
+        //Creating PDF doc current filters values
+        function makeReservFilters(){
+            var reservName = document.getElementsByClassName('reservName');
+            var reservLang = document.getElementsByClassName('reservLang');
+            var reservCountry = document.getElementsByClassName('reservCountry');
+            var reservStatus = document.getElementsByClassName('reservStatus'); 
+            var reservRoom = document.getElementsByClassName('reservRoom'); 
+            var reservMkSeg = document.getElementsByClassName('reservMkSeg'); 
+            var reservCheckInFrom = document.getElementsByClassName('reservCheckInFrom');
+            var reservCheckInTo = document.getElementsByClassName('reservCheckInTo');
+            var filters = " FILTER BY:\n";
+            var nameFilter = " | Name= " + reservName[0].value;
+            var langFilter = " | Lang= " + reservLang[0].value;
+            var countryFilter = " | Lang= " + reservCountry[0].value;
+            var statusFilter = " | Status= " + reservStatus[0].value;
+            var mkFilter = " | Mk. Seg.= " + reservMkSeg[0].value;
+            var checkInFilter = " | Arrival= " + reservCheckInFrom[0].value;
+            var toFilter = " | To= " + reservCheckInTo[0].value; 
+            var toFilter = " | Room= " + reservRoom[0].value;   
+            
+            filters = filters + nameFilter + langFilter + countryFilter + statusFilter + checkInFilter + toFilter;
+            return filters;                                       
+        }
+
+        function getRepName(repName){
+            gRepName = repName;
+        }
+        function selectCell(param){
+           //Calling apex:actionFunction name="readCell" 
+           readCell(param);
+        }
+        function setSelected(obj){            
+         
+           for(var i=0; i < obj.parentNode.parentNode.childNodes.length; i++){
+               obj.parentNode.parentNode.childNodes[i].classList.remove("myactive");
+           }                       
+           obj.parentNode.classList.add("myactive");           
+           //Multi-select
+           //if (obj.parentNode.classList.contains("myactive")){
+           //    obj.parentNode.classList.remove("myactive");
+           //}else {
+           //    obj.parentNode.classList.add("myactive");
+           //}
+           
+           //obj.parentNode.classList.add("myactive");
+                                
+           //alert(obj.parentNode.style.backgroundColor);
+           //obj.style.backgroundColor = '#e2f2fb';
+           //var i = obj.parentNode.rowIndex;
+        }
+
+        function jsSelectAllocated(tourName, tourLang, tourCounrty, tourRoom, 
+                                    tourRepName, tourRepId, tourAllocId, 
+                                    AppointmentDate, AppointmentTime, event){         
+            event.preventDefault();
+            $j("#tourName").text(tourName);
+            $j("#tourLanguage").text(tourLang);
+            $j("#tourCountry").text(tourCounrty);
+            $j("#tourRoom").text(tourRoom); 
+            $j("#tourRepName").text(tourRepName);
+            $j("#tourRepId").val(tourRepId);
+            $j("#tourAllocId").val(tourAllocId); 
+
+            var dateParts = AppointmentDate.split('/');
+            var dday = dateParts[0];
+            var dmonth = dateParts[1];
+            var dyear = dateParts[2];
+            if (dday.length == 1) dday = "0"+dday;
+            var appDay =  dyear + "-" + dmonth + "-" + dday;
+
+            $j("#tourDate").val(appDay); 
+            $j("#timeStart").val(AppointmentTime);
+
+            if (AppointmentDate.length == 0 ){
+                alert('NO APPOINTMENT "DATE" FOUND!');
+            }
+            if (AppointmentTime.length == 0 ){
+                alert('NO APPOINTMENT "TIME" FOUND!');
+            }            
+
+            apexDoEventsQuery(tourRepId, tourAllocId);         
+        }
+
+        function jsCreateTour(){
+            var tourRepId = $j("#tourRepId").val();
+            var tourAllocId = $j("#tourAllocId").val(); 
+            var tourDescrip = $j("#tourTxtArea").val(); 
+            var tourRepName = $j("#tourRepName").text(); 
+            var tourStartDate = $j("#tourDate").val();
+            var tourStartTime = $j("#timeStart").val();
+
+            apexCreateTour(tourRepId, tourAllocId, tourDescrip, tourRepName, tourStartDate, tourStartTime);
+            jsClearTourForm();
+        }
+        
+        function jsClearTourForm(){
+            event.preventDefault();
+            $j("#tourName").text("");
+            $j("#tourLanguage").text("");
+            $j("#tourCountry").text("");
+            $j("#tourRoom").text(""); 
+            $j("#tourRepName").text(""); 
+            $j("#tourDate").val("");  
+            $j("#timeStart").val(""); 
+            $j("#tourTxtArea").val("");    
+        }
+
+        //Get Allocation Id and Row index  !!!Example
+        // function jsUpdateAllocation(allocId, repId, obj){
+        //     var index = obj.parentNode.parentNode.rowIndex; 
+        //     var repName = '';
+        //     if (selectedRep != null) repName = selectedRep;                                                    
+        //     //alert(allocId + '-' + repName + '-' + repId) ;               
+        //     //Call APEX function() from apex:actionFunction  to update Allocation record
+        //     apexUpdateAllocation(allocId, repName, repId, index);               
+        // }
+
+        function jsUpdateAllocations(){
+            // var agree = confirm("Are you sure you want to Bulk Update Allocations?"); 
+            // if(agree){
+            //     apexUpdateAllAllocQuery(); 
+            // }
+            $j(function () {
+                doConfirm("Are you sure you want to Bulk Update Allocations?", function yes() {
+                    apexUpdateAllAllocQuery(); 
+                }, function no() {           
+                    // do nothing
+                });
+            });
+        }
+
+        function jsUpdateBulkAllocations(){
+            $j(function () {
+                doConfirm("Are you sure you want to Bulk Update Allocations?", function yes() {
+                    apexUpdateBulkAllocations(); 
+                }, function no() {           
+                    // do nothing
+                });
+            });
+
+        }        
+
+        function jsClearAllocFilters(){
+            var allocName = document.getElementsByClassName('allocName');
+            var allocLang = document.getElementsByClassName('allocLang');
+            var allocCountry = document.getElementsByClassName('allocCountry');
+            var allocStatus = document.getElementsByClassName('allocStatus'); 
+            var allocHotel = document.getElementsByClassName('allocHotel');
+            var allocRoom = document.getElementsByClassName('allocRoom'); 
+            var allocWeek = document.getElementsByClassName('allocWeek');             
+            var allocMkSeg = document.getElementsByClassName('allocMkSeg'); 
+            var allocCheckInFrom = document.getElementsByClassName('allocCheckInFrom');
+            var allocCheckInTo = document.getElementsByClassName('allocCheckInTo');
+
+            allocName[0].value = "";
+            allocLang[0].value = "";
+            allocCountry[0].value = "";
+            allocHotel[0].value = "";
+            allocRoom[0].value = "";
+            allocWeek[0].value = "";
+            allocStatus[0].value = "";
+            allocMkSeg[0].value = "";
+            allocCheckInFrom[0].value = null;
+            allocCheckInTo[0].value = null;
+            //Call APEX function() from apex:actionFunction to show all records
+            apexDoAllocQuery();
+        }
+        function jsClearReservFilters(){           
+
+            var reservName = document.getElementsByClassName('reservName');
+            var reservLang = document.getElementsByClassName('reservLang');
+            var reservCountry = document.getElementsByClassName('reservCountry');
+            var reservStatus = document.getElementsByClassName('reservStatus');
+            var reservRoom = document.getElementsByClassName('reservRoom');  
+            var reservWeek = document.getElementsByClassName('reservWeek');  
+            var reservMkSeg = document.getElementsByClassName('reservMkSeg'); 
+            var reservCheckInFrom = document.getElementsByClassName('reservCheckInFrom');
+            var reservCheckInTo = document.getElementsByClassName('reservCheckInTo');
+
+            reservName[0].value = "";
+            reservLang[0].value = "";
+            reservCountry[0].value = "";            
+            reservStatus[0].value = "";
+            reservRoom[0].value = "";
+            reservWeek[0].value = "";
+            reservMkSeg[0].value = "";
+            reservCheckInFrom[0].value = null;
+            reservCheckInTo[0].value = null;
+            //Call APEX function() from apex:actionFunction to show all records
+            apexDoReservQuery();
+        } 
+
+        function jsClearTourFilters(){
+            var tourName = document.getElementsByClassName('tourName');
+            var tourLang = document.getElementsByClassName('tourLang');
+            var tourCountry = document.getElementsByClassName('tourCountry');
+            var tourHotel = document.getElementsByClassName('tourHotel');
+            var tourRepName = document.getElementsByClassName('tourRep');  
+            var tourRepStatus = document.getElementsByClassName('tourStatus');            
+           
+            tourName[0].value = "";
+            tourLang[0].value = "";
+            tourCountry[0].value = "";
+            tourHotel[0].value = "";
+            tourRepName[0].value = "";
+            tourRepStatus[0].value = "";
+
+            //Call APEX function() from apex:actionFunction to show all records
+            apexDoTourAllocQuery();
+        }                
+        
+        function paintSelectedRow(obj){
+           if (obj.parentNode.classList.contains("myselected")){
+               //alert("myactive");
+               obj.parentNode.classList.remove("myselected");
+           }else {
+               obj.parentNode.classList.add("myselected");
+           }             
+        }        
+        
+        function selectIndex(obj){
+           var i = obj.parentNode.parentNode.rowIndex;
+        }
+
+        var busyCursorOn = function() {
+ 
+            var element = document.getElementById("waitPopup");
+            element.classList.remove("waitPopup");
+            element.classList.add("showWaitPopup");
+        }
+        
+        var busyCursorOff = function() {
+       
+            var element = document.getElementById("waitPopup");
+            element.classList.add("waitPopup");
+            element.classList.remove("showWaitPopup");  
+            //Setup table order, export, search configurations
+            if ( !$j(".allocTable").hasClass("dataTable") ) {             
+                setAllocTableConfig();  
+            }                                         
+        }    
+
+        var busyResCursorOn = function() {    
+            var element = document.getElementById("waitPopup");
+            element.classList.remove("waitPopup");
+            element.classList.add("showWaitPopup");
+        }
+        
+        var busyResCursorOff = function() {
+            
+            var element = document.getElementById("waitPopup");
+            element.classList.add("waitPopup");
+            element.classList.remove("showWaitPopup");   
+            //Setup table order, export, search configurations               
+            if ( !$j(".reservTable").hasClass("dataTable") ) {
+                
+                setReservTableConfig();  
+            }                  
+        } 
+
+        var busyTourCursorOn = function() {
+          
+            var element = document.getElementById("waitPopup");
+             element.classList.remove("waitPopup");
+            element.classList.add("showWaitPopup");
+        }
+        
+        var busyTourCursorOff = function() {
+          
+            var element = document.getElementById("waitPopup");
+            element.classList.add("waitPopup");
+            element.classList.remove("showWaitPopup"); 
+            //Setup table order, export, search configurations               
+            if ( !$j(".allocTourTable").hasClass("dataTable") ) {
+                    
+                setAllocTourTableConfig();  
+            }                        
+        }  
+        
+        var busyStaffCursorOn = function() {
+
+            var element = document.getElementById("waitPopup");
+             element.classList.remove("waitPopup");
+            element.classList.add("showWaitPopup");
+        }
+        
+        var busyStaffCursorOff = function() {
+
+            var element = document.getElementById("waitPopup");
+            element.classList.add("waitPopup");
+            element.classList.remove("showWaitPopup");                       
+        }  
+              
+        function doConfirm(msg, yesFn, noFn) {
+            var confirmBox = $j("#confirmBox");
+            confirmBox.find(".message").text(msg);
+            confirmBox.find(".yes,.no").unbind().click(function () {
+                confirmBox.hide();
+            });
+            confirmBox.find(".yes").click(yesFn);
+            confirmBox.find(".no").click(noFn);
+            confirmBox.show();
+        }       
+                  
+    </script>
+
+    <!--CSS styles-->    
+    <style>
+
+        table.dataTable thead .sorting_asc {
+            background-image: url(https://cdn.datatables.net/1.10.19/images/sort_asc.png) !important;
+            background-repeat: no-repeat !important;
+            background-position: center right !important; 
+        }
+        table.dataTable thead .sorting {
+            background-image: url(https://cdn.datatables.net/1.10.19/images/sort_both.png) !important;            
+            background-repeat: no-repeat !important;
+            background-position: center right !important;             
+        } 
+        table.dataTable thead .sorting_desc {
+            background-image: url(https://cdn.datatables.net/1.10.19/images/sort_desc.png) !important;          
+            background-repeat: no-repeat !important;
+            background-position: center right !important;             
+        }  
+        .headerRow div{
+            margin-right:6px;
+        }             
+        table .dataRow:hover, .headerRow{
+           cursor: pointer;
+        }
+        .headerRow{
+            height: 22px; 
+            background:#ddf9f9 !important
+        }
+        .pbHeader{background:#ddeef3 !important}
+        .pbTitle {width:100% !important}
+        .odd {background: #f7f7f7 !important}
+        .dataRow {height: 34px;}
+        .filterDiv, .repFilterDiv {   
+           margin-bottom: 20px;        
+           padding:10px;
+           background:#f7f7f7;
+        }
+        .myactive {background: #e2f2fb !important}
+        .myinactive {background: #fff}
+        .allocated {background: #f3e5fd}
+        .unallocated {background: #d4ffd4}
+        .filterColumn {
+           float:left;           
+           padding-right:8px
+        }
+        .allocCheckInFrom, 
+        .allocCheckInTo, 
+        .tourCheckIn, 
+        .tourCheckOut,         
+        .reservCheckInFrom, 
+        .reservCheckInTo{
+            width:125px;
+        }
+        .allocName, 
+        .allocLang, 
+        .allocCountry,
+        .allocHotel,
+        .allocRoom,
+        .allocWeek,
+        .allocStatus, 
+        .allocMkSeg,
+        .reservName,
+        .reservLang,
+        .reservCountry,
+        .reservStatus,
+        .reservRoom,
+        .reservWeek,
+        .reservMkSeg,
+        .tourName, 
+        .tourLang, 
+        .tourCountry,
+        .tourHotel,
+        .tourRepName,
+        .tourStatus,
+        .repFilterDiv input{
+            width:80px;
+        }     
+        .fetch{
+            width:40px;
+            text-align:right
+        }          
+        .totalRecords{
+            float: right;
+            padding-top: 10px;
+        }
+        .allocButton, .allocButtonSave{
+            border-radius: 0px !important;            
+        }
+        .allocButton{
+            margin-right:10px !important;  
+            margin-top: -2px !important         
+        }      
+           
+        .allocButtonSave{
+            border: 2px solid #00af03 !important;  
+            border-bottom-color: #00af03 !important; 
+            margin-top: -2px !important              
+        }
+        .bPageFooter, .waitPopup{
+            display:none
+        }
+        .showWaitPopup{
+            display:block
+        }         
+        .activeTab {
+            cursor:pointer;
+            font-size:14px;
+            background-color: #236FBD; 
+            color:white; 
+            background-image:none
+        }
+        .inactiveTab { 
+            background-color: lightgrey; 
+            color:black; 
+            background-image:none
+        }   
+        .guaranteed{
+            background-color: #d4ffd4
+        }     
+        .reserv-status{
+          background-color: #f3e5fd  
+        }
+        .header-img{
+            padding-bottom:10px
+        }
+        .page-title{
+            position: absolute;
+            color: #fff;
+            left: 40%;
+            top: 40px;
+            font-size: 40px;   
+            text-shadow: 1px 1px #000;   
+            font-weight: 600      
+        }
+        .the-logo{
+            position: absolute; 
+            width: 150px;
+            top: 10px;
+            left: 40px;
+        }
+        /*Confirm Dialog Box*/
+        #confirmBox {
+            position: absolute;
+            top: 35%;
+            z-index: 999;
+            display: none;
+            background-color: #eee;
+            border-radius: 0px;
+            border: 1px solid #929292;
+            position: fixed;
+            width: 300px;
+            left: 50%;
+            margin-left: -150px;
+            padding: 6px 8px 8px;
+            box-sizing: border-box;
+            text-align: center;
+        } 
+        #confirmBox .button {
+            background-color: #ccc;
+            display: inline-block;
+            border-radius: 0px;
+            border: 1px solid #aaa;
+            padding: 6px;
+            text-align: center;
+            width: 80px;
+            margin-top: 5px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        #confirmBox .button:hover {
+            background-color: #ddd;
+        }
+        #confirmBox .message {
+            text-align: center;
+            margin-top: 10px;
+            margin-bottom: 10px;
+            border-radius: 0px;
+            background-color:#f3dfdf;
+            font-size: 14px;
+            font-weight: 600;
+        }   
+        #tourInfo{
+            font-size:14px;            
+        }  
+        #tourInfo tr td{
+            padding:6px;
+            border-bottom: 1px solid #cccccc
+        }         
+        .tourLabel{
+            font-weight: 600;
+        } 
+        .dateInput .dateFormat{
+            display:none;
+        }
+      
+  
+    </style>
+    <!--<apex:actionStatus id="status">
+        <apex:facet name="start">
+            <div style="position: fixed; left: 45%; top: 50%; border:1px solid gray">
+                <div style="display: inline-block; padding: 2px; background-color: #f7f7f7; width: 125px;">
+                    <img src="/img/loading.gif" style="float: left; margin: 8px;" />
+                    <span style="display: inline-block; padding: 10px 0px;">Please Wait...</span>
+                </div>
+            </div>
+        </apex:facet>
+    </apex:actionStatus> --> 
+    <apex:image id="theHeader" styleClass="header-img" value="{!$Resource.company_allocation_header}" width="100%" height="120" alt="Description of image here">
+        <apex:image id="theLogo" styleClass="the-logo" value="{!$Resource.app_logo}" alt="Description of image here"/>
+        <label class="page-title">Allocations Process</label>  
+    </apex:image>  
+
+    <apex:tabPanel switchType="client" selectedTab="reservationsTab" id="AllocationsTabPanel" tabClass="activeTab" 
+                  inactiveTabClass="inactiveTab"> 
+        
+        <!-- ***************** ************************ ******************** -->
+        <!-- ***************** Reservation TAB sections ******************** -->  
+        <!-- ***************** ************************ ******************** -->              
+        <apex:tab label="Reservations" name="reservationsTab" id="reservationsTab">
+            <apex:actionStatus id="busyReservCursor" onStart="busyResCursorOn()" onStop="busyResCursorOff()"/>
+            <apex:form > 
+                <!-- actionFunction is for calling controller's method doReservQuery-->
+                <apex:actionFunction action="{!doReservQuery}" name="apexDoReservQuery" reRender="reservationsBlock" status="busyReservCursor"/>  
+                <!-- Reservation list of Arrivals panel -->
+                <apex:outputPanel id="reservLeftPanel" layout="block" style="height:760px; width: 90%; float: left;"> 
+                        <!-- Filter section -->  
+                        <apex:pageBlock title="Reservation Filters">   
+                            <div class="filterDiv">
+                                <div class="filterColumn">
+                                    <apex:inputText styleClass="reservName" value="{!searchName}" html-placeholder="by Name"/>  
+                                </div> 
+                                
+                                <div class="filterColumn">
+                                    <apex:inputText styleClass="reservLang" value="{!searchLang }" html-placeholder="by Language"/> 
+                                </div>  
+                                <div class="filterColumn">
+                                    <apex:inputText styleClass="reservCountry" value="{!searchCountry }" html-placeholder="by Country"/> 
+                                </div>                                 
+                                
+                                <div class="filterColumn">
+                                    <apex:inputText styleClass="reservStatus" value="{!searchStatus}" html-placeholder="by Status"/> 
+                                </div>                               
+
+                                <div class="filterColumn">
+                                    <apex:inputText styleClass="reservRoom" value="{!searchRoom}" html-placeholder="by Room"/> 
+                                </div>                                  
+
+                                <div class="filterColumn" style="display:none">
+                                    <apex:inputText styleClass="reservMkSeg" value="{!searchMkSegment}" html-placeholder="by Mk.Seg."/> 
+                                </div>                                 
+                                
+                                <div class="filterColumn">
+                                    <apex:inputText styleClass="reservWeek" value="{!searchWeek}"  html-placeholder="week" style="width:40px"/> 
+                                </div>  
+
+                                <div class="filterColumn">
+                                    <label>Arrival From: </label>
+                                    <apex:input styleClass="reservCheckInFrom" type="date" value="{!checkInDateFrom}"/> 
+                                </div> 
+
+                                <div class="filterColumn">
+                                    <label>To: </label>
+                                    <apex:input styleClass="reservCheckInTo" type="date" value="{!checkInDateTo}" /> 
+                                </div>                               
+
+                                <div class="filterColumn" style="margin-left:40px">
+                                    <label>Fetch: </label>
+                                    <apex:input styleClass="fetch" value="{!reservRecordsLimit}"/> 
+                                </div> 
+                                
+                                <div class="filterColumn" style="float:left">
+                                    <apex:commandButton styleClass="allocButton" style="width:60px" value="Apply" onclick="apexDoReservQuery()" 
+                                                        oncomplete="window.location.top.reload();" status="" />
+                                </div>                                  
+
+                                <div class="filterColumn" style="float:right">
+                                    <apex:commandButton styleClass="allocButton" style="width:60px" value="Show All" onclick="jsClearReservFilters()" 
+                                                        oncomplete="window.location.top.reload();" status="" />
+                                </div>  
+                                                                                                                  
+                                <!--<apex:outputText style="font-style:italic" value="This is {0} text with {1}.">
+                                <apex:param value="my"/>
+                                <apex:param value="arguments"/>
+                                </apex:outputText>-->                                                                    
+                                                
+                            </div>  
+
+                        </apex:pageBlock>  
+                    <apex:outputPanel id="reservPanel" layout="block" style="overflow:auto; height:600px; width: 100%; float: left; border:1px solid #f7f7f7">            
+        
+                        <apex:pageBlock title="Reservations List.  (records:{!reservations.size})" id="reservationsBlock">                        
+                            
+                            <apex:pageBlockTable styleClass="reservTable" value="{!reservations}" var="reservation" style="float: left; margin-top: 10px; margin-bottom:20px">                                
+                                <apex:column headerValue="Name" value="{!reservation.Account__c}" onclick="setSelected(this)"/>
+                                <apex:column headerValue="Occupant" value="{!reservation.OccupantName__c}" onclick="setSelected(this)"/>                                
+                                <apex:column headerValue="Opportunity" value="{!reservation.Opportunity__c}" onclick="setSelected(this)"/>
+                                <apex:column headerValue="Language" value="{!reservation.Account__r.Language__pc}" onclick="setSelected(this)"/>
+                                <apex:column headerValue="Country" value="{!reservation.Account__r.Country_Name__pc}" onclick="setSelected(this)"/>
+                                <apex:column headerValue="Hotel" value="{!reservation.HotelId__c}" onclick="setSelected(this)"/>
+                                <apex:column headerValue="Room No" value="{!reservation.RoomNo__c}" onclick="setSelected(this)"/>
+                                <apex:column headerValue="Adults" value="{!reservation.Adults__c}" onclick="setSelected(this)"/>
+                                <apex:column headerValue="Children" value="{!reservation.Children__c}" onclick="setSelected(this)"/>                    
+                                <apex:column headerValue="Arrival" value="{!reservation.Arrival__c}" onclick="setSelected(this)"/>
+                                <apex:column headerValue="Departure" value="{!reservation.Departure__c}" onclick="setSelected(this)"/>    
+                                <apex:column headerValue="Mk.Source" value="{!reservation.MktSegment__c}" onclick="setSelected(this)"/>                                 
+                                <apex:column headerValue="Status" value="{!reservation.Status__c}" styleClass="{!IF(reservation.Status__c == '1','guaranteed','reserv-status')}" />                                    
+                                <apex:column headerValue="Wk" value="{!reservation.Week__c}" onclick="setSelected(this)"/>
+
+                            </apex:pageBlockTable>            
+                                
+                        </apex:pageBlock>   
+                    </apex:outputPanel> 
+                </apex:outputPanel>
+            </apex:form>                
+        </apex:tab>
+
+        <!-- ***************** ************************ ******************** -->
+        <!-- ***************** Allocation TAB sections ******************** -->
+        <!-- ***************** ************************ ******************** --> 
+        <apex:tab label="Allocations" name="allocationsTab" id="allocationsTab" ontabenter="apexUpdateRepsAllocations()">
+            <apex:actionStatus id="busyCursor" onStart="busyCursorOn()" onStop="busyCursorOff()"/>
+            <apex:form >        
+                 <!-- actionFunction is for calling controller's method selectAllocatedByRep-->
+                <apex:actionFunction name="apexSelectAllocatedByRep" action="{!selectAllocatedByRep}" reRender="allocationBlock" status="busyCursor">
+                    <apex:param name="repId" value="" assignTo="{!repId}"/> 
+                </apex:actionFunction>           
+            
+                <!-- actionFunction is for calling controller's method doAllocQuery-->
+                <apex:actionFunction action="{!doAllocQuery}" name="apexDoAllocQuery" reRender="allocationBlock, tourAllocPanel, repsBlock" status="busyCursor"/>  
+                <apex:actionFunction action="{!updateAllRepsAllocations}" name="apexUpdateRepsAllocations" reRender="repsBlock" status="busyCursor"/>             
+
+                <!-- actionFunction is for calling controller's method updateAllAllocation-->
+                <apex:actionFunction action="{!updateAllAllocation}" name="apexUpdateAllAllocQuery" reRender="allocationBlock, repsBlock, tourAllocPanel" status="busyCursor"/>            
+                <apex:actionFunction action="{!updateBulkAllocation}" name="apexUpdateBulkAllocations" reRender="allocationBlock, repsBlock, tourAllocPanel" status="busyCursor"/>         
+                <!-- Allocation list of Arrivals panel -->
+                <apex:outputPanel id="leftPanel" layout="block" style="height:740px; width: 80%; float: left;"> 
+                        <!-- Filter section -->  
+                        <apex:pageBlock title="Allocation Filters">   
+                            <div class="filterDiv">
+                                <div class="filterColumn">
+                                    <apex:inputText styleClass="allocName" value="{!searchName}" html-placeholder="by Name"/>  
+                                </div> 
+                                
+                                <div class="filterColumn">
+                                    <apex:inputText styleClass="allocLang" value="{!searchLang }" html-placeholder="by Language"/> 
+                                </div>  
+
+                                <div class="filterColumn">
+                                    <apex:inputText styleClass="allocCountry" value="{!searchCountry }" html-placeholder="by Country"/> 
+                                </div>                                  
+
+                                <div class="filterColumn" >
+                                    <apex:selectList styleClass="allocStatus" value="{!searchStatus}" size="1">
+                                        <apex:selectOption itemValue="" itemLabel="All Status"/>
+                                        <apex:selectOption itemValue="Alloc" itemLabel="Allocated"/>
+                                        <apex:selectOption itemValue="Unallo" itemLabel="Unallocated"/>
+                                        <apex:selectOption itemValue="Toured" itemLabel="Toured"/>
+                                        <apex:selectOption itemValue="NQ" itemLabel="NQ"/>
+                                    </apex:selectList> 
+                                </div>                                 
+
+                                <div class="filterColumn" >
+                                    <apex:selectList styleClass="allocHotel" value="{!searchHotel}" size="1">
+                                        <apex:selectOption itemValue="" itemLabel="All Hotels"/>
+                                        <apex:selectOption itemValue="BHC" itemLabel="BHC"/>
+                                        <apex:selectOption itemValue="BHH" itemLabel="BHH"/>
+                                        <apex:selectOption itemValue="HMC" itemLabel="HMC"/>
+                                        <apex:selectOption itemValue="PBC" itemLabel="PBC"/>
+                                        <apex:selectOption itemValue="PMA" itemLabel="PMA"/>
+                                    </apex:selectList> 
+                                </div>                                
+
+                               <div class="filterColumn">
+                                    <apex:inputText styleClass="allocRoom" value="{!searchAllocRoom}" html-placeholder="by Room"/> 
+                                </div>                                                                
+                                
+                                <div class="filterColumn">
+                                    <apex:inputText styleClass="allocWeek" value="{!searchWeek}"  html-placeholder="week" style="width:40px"/> 
+                                </div>  
+
+                               <div class="filterColumn" style="display:none">
+                                    <apex:inputText styleClass="allocMkSeg" value="{!searchMkSegment}"  html-placeholder="by Mk.Seg."/> 
+                                </div>                                                                  
+                                
+                                <div class="filterColumn">
+                                    <label>CheckIn From: </label>
+                                    <apex:input styleClass="allocCheckInFrom" type="date" value="{!checkInDateFrom}" /> 
+                                </div> 
+
+                                <div class="filterColumn">
+                                    <label>To: </label>
+                                    <apex:input styleClass="allocCheckInTo" type="date" value="{!checkInDateTo}" /> 
+                                </div>                                
+
+                                <div class="filterColumn" style="">
+                                    <label>Fetch: </label>
+                                    <apex:input styleClass="fetch" value="{!recordsLimit}" /> 
+                                </div>  
+                                
+                                <div class="filterColumn" style="float:left">
+                                    <apex:commandButton styleClass="allocButton" style="width:50px" value="Apply" onclick="apexDoAllocQuery()" 
+                                                        oncomplete="window.location.top.reload();" status="" />
+                                </div>                                                                     
+
+                                <div class="filterColumn" style="float:right">
+                                    <apex:commandButton styleClass="allocButtonSave" style="width:50px" value="SAVE" onclick="jsUpdateAllocations();" 
+                                                        oncomplete="window.location.top.reload();" status="" /> 
+                                </div>                                                                  
+
+                                <div class="filterColumn" style="float:right">
+                                    <apex:commandButton styleClass="allocButton" style="width:50px" value="Show All" onclick="jsClearAllocFilters()" 
+                                                        oncomplete="window.location.top.reload();" status="" />
+                                </div>                                                                     
+                                                 
+                            </div>  
+                            <div class="filterDiv" style="display:none">
+                                <div class="filterColumn" style="float:left">
+                                    <label>Bulk status change: </label>
+                                    <apex:selectList id="allcoStatus" value="{!allocStatus}" size="1">
+                                        <apex:selectOption itemValue="Alloc" itemLabel="Allocated"/>
+                                        <apex:selectOption itemValue="Unallo" itemLabel="Unallocated"/>
+                                        <apex:selectOption itemValue="Toured" itemLabel="Toured"/>
+                                    </apex:selectList> 
+                                </div> 
+                                <div class="filterColumn" style="float:left">
+                                    <label>Bulk set Reps: </label>
+                                    <apex:selectList id="allocReps" value="{!allocReps}" size="1">
+                                        <apex:selectOption itemValue="1" itemLabel="Rep-1"/>
+                                        <apex:selectOption itemValue="2" itemLabel="Rep-2"/>
+                                        <apex:selectOption itemValue="3" itemLabel="Rep-3"/>
+                                    </apex:selectList> 
+                                </div>                                
+                                <div class="filterColumn" style="float:left">
+                                    <apex:commandButton styleClass="allocButton" style="width:50px" value="Apply" onclick="jsUpdateBulkAllocations()" 
+                                                            oncomplete="window.location.top.reload();" status="" /><!--updateBulkAllocation-->
+                                </div>                                                                 
+                            </div>
+                            
+                        </apex:pageBlock>  
+                    <apex:outputPanel id="allocPanel" layout="block" style="overflow:auto; height:600px; width: 100%; float: left; border:1px solid #f7f7f7">            
+        
+                        <apex:pageBlock title="Allocations List.  (records:{!allocations.size})" id="allocationBlock">                    
+
+                            <apex:pageBlockTable styleClass="allocTable" value="{!allocations}" var="allocation" style="float: left; margin-top: 10px; margin-bottom:20px">
+                                <!--0-->
+                                <apex:column headerValue="Name" value="{!allocation.Account__c}" onclick="setSelected(this)"/>
+                                <!--1-->
+                                <apex:column headerValue="Occupant" value="{!allocation.Reservation__r.OccupantName__c}" onclick="setSelected(this)"/>  
+                                <!--2-->
+                                <apex:column headerValue="Language" value="{!allocation.Account__r.Language__pc}" onclick="setSelected(this)"/>
+                                <!--3-->
+                                <apex:column headerValue="Country" value="{!allocation.Account__r.Country_Name__pc}" onclick="setSelected(this)"/>
+                                <!--4-->
+                                <apex:column headerValue="Paxs" >
+                                    <apex:outputText value="{!allocation.Reservation__r.Adults__c}+{!allocation.Reservation__r.Children__c}"/>                                  
+                                </apex:column> 
+                                <!--5-->
+                                <apex:column headerValue="Rooms" value="{!allocation.RoomNumbers__c}" onclick="setSelected(this)"/> 
+                                <!--6-->
+                                <apex:column headerValue="Hotel" value="{!allocation.Reservation__r.HotelId__c}" onclick="setSelected(this)"/>               
+                                <!--7-->
+                                <apex:column headerValue="Check-In" value="{!allocation.CheckIn__c}" onclick="setSelected(this)"/>
+                                <!--8-->
+                                <apex:column headerValue="Check-Out" value="{!allocation.CheckOut__c}" onclick="setSelected(this)"/>    
+                                <!--9-->
+                                <apex:column headerValue="Status" >
+                                    <apex:inputField value="{!allocation.Status__c}" styleClass="{!IF(allocation.Status__c == 'Alloc','allocated','unallocated')}"/>   
+                                </apex:column>
+                                <!--10-->                                                                   
+                                <apex:column headerValue="Appt. Date" >
+                                    <apex:inputField value="{!allocation.AppointmentDate__c}" style="width:70px"/>   
+                                </apex:column> 
+                                <!--11-->   
+                                <apex:column headerValue="Appt. Day" value="{!allocation.AppointmentDay__c}"/>
+                                <!--12-->                                                             
+                                <apex:column headerValue="Appt. Time" >
+                                    <apex:inputField value="{!allocation.AppointmentTime__c}" style="width:60px"/>   
+                                </apex:column>                                                                                                
+                                <!--13-->
+                                <apex:column headerValue="Sales Reps" onclick="setSelected(this)">
+                                    <apex:inputField id="repName" value="{!allocation.SalesRep__c}" style="width:100px"/>   
+                                </apex:column>
+                                <!--14-->
+                                <apex:column headerValue="Sales ISA" onclick="setSelected(this)">
+                                    <apex:inputField id="isaName" value="{!allocation.SalesISA__c}" style="width:100px"/>   
+                                </apex:column>                                
+                                <!--15-->
+                                <apex:column headerValue="Sales TOs">
+                                    <apex:inputField value="{!allocation.SalesTO__c}" style="width:100px"/>   
+                                </apex:column>  
+                                <!--16-->
+                                <apex:column headerValue="Mk.Source" value="{!allocation.Reservation__r.MktSegment__c}" onclick="setSelected(this)"/>                                    
+                                <!--17-->
+                                <apex:column headerValue="Status" value="{!allocation.Status__c}"/> 
+                                <!--18-->
+                                <apex:column headerValue="Reps" value="{!allocation.SalesRep__c}"/>   
+                                <!--19-->
+                                <apex:column headerValue="ISA" value="{!allocation.SalesISA__c}"/>                                   
+                                <!--20-->
+                                <apex:column headerValue="TO" value="{!allocation.SalesTO__c}"/> 
+                                <!--21-->
+                                <apex:column headerValue="Appt.Day" value="{!allocation.AppointmentDay__c}"/>  
+                                <!--22-->
+                                <apex:column headerValue="Appt.Time" value="{!allocation.AppointmentTime__c}"/>                         
+                                <!--23-->                                             
+                                <apex:column headerValue="Wk" value="{!allocation.Reservation__r.Week__c}" onclick="setSelected(this)"/>                                                                    
+                            </apex:pageBlockTable>            
+                                
+                        </apex:pageBlock>   
+                    </apex:outputPanel> 
+                </apex:outputPanel>
+
+                <apex:actionStatus id="busyStaffCursor" onStart="busyStaffCursorOn()" onStop="busyStaffCursorOff()"/>
+                <!-- actionFunction is for calling controller's method doSalesStaffQuery-->
+                <apex:actionFunction action="{!doSalesStaffQuery}" name="apexStaffQuery" reRender="repsBlock" status="busyStaffCursor"/>     
+
+                <!-- Allocation list of Sales Reps/TOs panel -->
+                <apex:outputPanel id="rightPanel" layout="block" style="height:740px; width: 16%; float: left;">               
+                        <!-- Filter section -->   
+                        <apex:pageBlock title="Reps / TOs Filter." > 
+                            <div class="repFilterDiv">
+                                <div class="filterColumn">
+                                    <label>Name:</label>
+                                    <apex:inputText value="{!searchReps}" onblur="apexStaffQuery()"/>
+                                </div>
+                                <div class="filterColumn" style="float:left">
+                                    <apex:selectList id="allocReps" value="{!searchType}" size="1" onchange="apexStaffQuery()">
+                                        <apex:selectOption itemValue="Rep" itemLabel="Rep"/>
+                                        <apex:selectOption itemValue="ISA" itemLabel="ISA"/>
+                                        <apex:selectOption itemValue="TO" itemLabel="TO"/>
+                                    </apex:selectList> 
+                                </div>                                                                   
+                            </div> 
+                        </apex:pageBlock>     
+                   <!-- Allocation list of Sales Reps/TOs -->
+                    <apex:outputPanel id="repsPanel" style="overflow:auto; height:600px; width: 100%; float: left; margin-left:10px">     
+
+                        <apex:pageBlock title="Sales Rep/TO/ISA.(records:{!salesStaff.size})-Cutoff:{!checkInDateFromReps}" id="repsBlock">                                                            
+                            <apex:pageBlockTable value="{!salesStaff}" var="staff" style="float: left; margin-top: 10px; margin-bottom:20px">
+        
+                                <apex:column value="{!staff.Name}" onclick="apexSelectAllocatedByRep('{!staff.id}'); setSelected(this); getRepName('{!staff.Name}')"/>
+                                <apex:column value="{!staff.NoOfAllocations__c}" onclick="apexSelectAllocatedByRep('{!staff.Id}') ; setSelected(this); getRepName('{!staff.Name}')"/>
+                                <apex:column value="{!staff.Staff_Type__c}" onclick="apexSelectAllocatedByRep('{!staff.Id}'); setSelected(this); getRepName('{!staff.Name}')"/>
+                                    
+                            </apex:pageBlockTable>            
+                        </apex:pageBlock>
+                    </apex:outputPanel>    
+                </apex:outputPanel>            
+            </apex:form>
+        </apex:tab>
+ 
+        <!-- ***************** ************************ ******************** -->
+        <!-- ***************** Tour TAB sections ******************** -->
+        <!-- ***************** ************************ ******************** -->
+        <apex:tab label="Tours" name="toursTab" id="toursTab" style="display:block" immediate="true">
+            <apex:actionStatus id="busyTourAllocCursor" onStart="busyTourCursorOn()" onStop="busyTourCursorOff()"/>
+  
+            <apex:form >
+                <!-- actionFunction is for calling controller's method doAllocTourQuery-->
+                <apex:actionFunction action="{!doAllocTourQuery}" name="apexDoTourAllocQuery" reRender="tourAllocationBlock" status="busyTourAllocCursor"/>                 
+                <!-- actionFunction is for calling controller's method CreateTourEvent-->
+                <apex:actionFunction action="{!CreateTourEvent}" name="apexCreateTour" reRender="repsTourBlock, tourAllocPanel" status="busyTourAllocCursor"> 
+                    <apex:param name="tourRepId" value="" /> 
+                    <apex:param name="tourAllocId" value="" /> 
+                    <apex:param name="tourDescrip" value="" /> 
+                    <apex:param name="tourRepName" value="" /> 
+                    <apex:param name="tourStartDate" value="" />
+                    <apex:param name="tourStartTime" value="" />                                        
+                </apex:actionFunction>
+                <!-- actionFunction is for calling controller's method doEventsQuery-->
+                <apex:actionFunction action="{!doEventsQuery}" name="apexDoEventsQuery" reRender="repsTourBlock" status="busyTourAllocCursor">
+                     <apex:param name="tourSelectRepId" value=""  assignTo="{!selectedRepId}"/> 
+                     <apex:param name="tourAllocId" value=""  assignTo="{!tourEventAllocId}"/> 
+                </apex:actionFunction>
+                <!-- actionFunction is for calling controller's method DeleteTourEvent-->
+                <apex:actionFunction action="{!doDeleteTourEvent}" name="apexDeleteTourEvent" reRender="repsTourBlock, tourAllocPanel" status="busyTourAllocCursor">        
+                    <!--First parameter passed on  apexDeleteTourEvent method-->          
+                    <apex:param name="tourEventId" value="" />  
+                    <apex:param name="tourAllocId" value="" /> 
+                    <apex:param name="tourEventStatus" value="" />
+                </apex:actionFunction>                        
+
+                <!-- actionFunction is for calling controller's method doUpdateTourEvent-->
+                <apex:actionFunction action="{!doUpdateTourEvent}" name="apexUpdateTourEvent" reRender="repsTourBlock, tourAllocPanel" status="busyTourAllocCursor"/>                  
+                                
+                <apex:outputPanel id="toursSectionPanel" styleClass="toursPanel">
+                <!-- Tour Allocation list of Arrivals panel -->
+                    <apex:outputPanel id="tourLeftPanel" layout="block" style="height:700px; width: 55%; float: left;"> 
+                        <!-- Filter section -->  
+                        <apex:pageBlock title="Tours Allocations Filters">   
+                            <div class="filterDiv">
+                                <div class="filterColumn">
+                                    <apex:inputText styleClass="tourName" value="{!searchName}" html-placeholder="by Name"/>  
+                                </div> 
+                                
+                                <div class="filterColumn">
+                                    <apex:inputText styleClass="tourLang" value="{!searchLang }" html-placeholder="by Language"/> 
+                                </div>      
+
+                                <div class="filterColumn">
+                                    <apex:inputText styleClass="tourCountry" value="{!searchCountry }" html-placeholder="by Country"/> 
+                                </div>   
+
+                                <div class="filterColumn" >
+                                    <apex:selectList styleClass="tourHotel" value="{!searchHotel}" size="1">
+                                        <apex:selectOption itemValue="" itemLabel="All Hotels"/>
+                                        <apex:selectOption itemValue="BHC" itemLabel="BHC"/>
+                                        <apex:selectOption itemValue="BHH" itemLabel="BHH"/>
+                                        <apex:selectOption itemValue="HMC" itemLabel="HMC"/>
+                                        <apex:selectOption itemValue="PBC" itemLabel="PBC"/>
+                                        <apex:selectOption itemValue="PMA" itemLabel="PMA"/>
+                                    </apex:selectList> 
+                                </div>                                
+
+                               <div class="filterColumn">
+                                    <apex:inputText styleClass="tourRep" value="{!searchRepName }" html-placeholder="by Rep name"/> 
+                                </div>   
+                                
+                                <div class="filterColumn" >
+                                    <apex:selectList styleClass="tourStatus" value="{!searchStatus}" size="1">
+                                        <apex:selectOption itemValue="" itemLabel="All Status"/>
+                                        <apex:selectOption itemValue="Alloc" itemLabel="Allocated"/>
+                                        <apex:selectOption itemValue="Unallo" itemLabel="Unallocated"/>
+                                        <apex:selectOption itemValue="Toured" itemLabel="Toured"/>
+                                        <apex:selectOption itemValue="NQ" itemLabel="NQ"/>
+                                    </apex:selectList> 
+                                </div>                                 
+
+                                <div class="filterColumn" style="margin-left:20px">
+                                    <label>Fetch: </label>
+                                    <apex:input styleClass="fetch" value="{!recordsLimit}"/> 
+                                </div>    
+                                
+                                <div class="filterColumn" style="float:left"> 
+                                    <apex:commandButton styleClass="allocButton" style="width:60px" value="Apply" onclick="apexDoTourAllocQuery()" 
+                                                        oncomplete="window.location.top.reload();" status="" />
+                                </div>                                 
+
+                                <div class="filterColumn" style="float:right">
+                                    <apex:commandButton styleClass="allocButton" style="width:60px" value="Show All" onclick="jsClearTourFilters()" 
+                                                        oncomplete="window.location.top.reload();" status="" />
+                                </div>                                                                                   
+                                                                                                                  
+                            </div>  
+
+                        </apex:pageBlock>  
+                        <apex:outputPanel id="tourAllocPanel" layout="block" style="overflow:auto; height:600px; width: 100%; float: left; border:1px solid #f7f7f7">                   
+                        <apex:pageBlock title="Tour Allocations List.  (records:{!allocTour.size})" id="tourAllocationBlock">                       
+                                        
+                            <apex:pageBlockTable styleClass="allocTourTable" value="{!allocTour}" var="allocation" style="float: left; margin-top: 10px; margin-bottom:20px">
+
+                                <apex:column headerValue="Name" value="{!allocation.Account__c}" onclick="setSelected(this);"/>                                        
+                                <apex:column headerValue="Language" value="{!allocation.Account__r.Language__pc}" onclick="setSelected(this)"/>
+                                <apex:column headerValue="Country" value="{!allocation.Account__r.Country_Name__pc}" onclick="setSelected(this)"/>
+                                <apex:column headerValue="Rooms" value="{!allocation.RoomNumbers__c}" onclick="setSelected(this)"/>                                 
+                                <apex:column headerValue="Hotel" value="{!allocation.Reservation__r.HotelId__c}" onclick="setSelected(this)"/>  
+                                <apex:column headerValue="Reps" value="{!allocation.SalesRep__c}" onclick="setSelected(this)"/>   
+                                <apex:column headerValue="TO" value="{!allocation.SalesTO__c}" onclick="setSelected(this)"/> 
+                                <apex:column headerValue="Appt.Date" value="{!allocation.AppointmentDate__c}" onclick="setSelected(this)"/> 
+                                <apex:column headerValue="Appt.Day" value="{!allocation.AppointmentDay__c}" onclick="setSelected(this)" styleClass="{!IF(allocation.Toured__c == true,'unallocated','')}"/>  
+                                <apex:column headerValue="Appt.Time" value="{!allocation.AppointmentTime__c}" onclick="setSelected(this)"/>                                   
+                                <apex:column headerValue="Status" value="{!allocation.Status__c}" styleClass="{!IF(allocation.Status__c == 'Alloc','allocated','unallocated')}" />
+                                <apex:column headerValue="Action" onclick="setSelected(this)">
+                                    <apex:commandButton styleClass="allocButton" style="width:50px" value="Select" 
+                                        onclick="jsSelectAllocated('{!allocation.Account__r.Name}',
+                                        '{!allocation.Account__r.Language__pc}',
+                                        '{!allocation.Account__r.Country_Name__pc}',
+                                        '{!allocation.RoomNumbers__c}',
+                                        '{!allocation.SalesRep__r.Name}', 
+                                        '{!allocation.SalesRep__c}', 
+                                        '{!allocation.Id}',
+                                        '{!allocation.AppointmentDate__c}', 
+                                        '{!allocation.AppointmentTime__c}',
+                                        event)"/>   
+                                </apex:column>                                               
+
+                            </apex:pageBlockTable>            
+                                
+                        </apex:pageBlock>   
+                    </apex:outputPanel> 
+                    </apex:outputPanel>
+        
+                    <!-- actionFunction is for calling controller's method -->                    
+                    <apex:outputPanel id="tourRightPanel" layout="block" style="height:800px; width: 45%; float: left;">               
+                    <!-- Allocation list of Sales Reps/TOs panel -->
+                    <apex:outputPanel id="tourPanel" style="height:800px; width: 100%; float: left; margin-left:10px">     
+                        <!-- Filter section -->   
+                        <apex:pageBlock title="Create Tour Details"> 
+                            <!-- Call calendar-->
+                            <a href="https://eu9.salesforce.com/00U/c?cType=1&cal_lkid=0230O000006SfhS" target="_blank" style="font-size:12px;float:right">Check Calendar</a>
+                            <table id="tourInfo" border="0">
+                                    <tr>
+                                        <td width="100px"><span class="tourLabel">Name:</span></td>
+                                        <td width="200px"><span id="tourName"></span></td>
+                                        <td><span class="tourLabel">Language:</span></td>
+                                        <td><span id="tourLanguage"></span></td>
+                                    </tr>
+                                    <tr>
+                                        <td width="100px"><span class="tourLabel">Country:</span></td>
+                                        <td><span id="tourCountry"></span></td>
+                                        <td><span class="tourLabel">Room:</span></td>
+                                        <td><span id="tourRoom"></span></td>
+                                    </tr>  
+                                    <tr>
+
+                                        <td width="100px"><span class="tourLabel">Rep name:</span></td>
+                                            <td><span id="tourRepName"></span></td> 
+                                        <td><span class="tourLabel">Tour Date:</span></td>
+                                        <td>                                         
+                                            <input type="date" id="tourDate"/>                                                                                 
+                                        </td>
+
+                                    </tr>                                                                        
+                                    <tr>
+                                        <td width="100px"><span class="tourLabel">Start Time:</span></td>
+                                        <td>                                          
+                                            <input type="time" id="timeStart"/> 
+                                        </td>
+                                        <td><span class="tourLabel">End Time:</span>                                        
+                                        </td>
+                                        <td>                                         
+                                            <apex:input type="auto" id="endTour" value="{!endTime}" />                                                                                     
+                                        </td>
+                                    </tr>  
+
+                                    <tr>
+                                        <td width="100px" style="vertical-align: top;" ><span class="tourLabel">Notes:</span></td>
+                                        <td colspan="3">
+                                            <textarea id="tourTxtArea" rows="4" cols="60" wrap="hard" value="{!tourDescription}" style="text-align:left"></textarea>
+                                        </td>
+                                    </tr>   
+                                    <tr>
+                                        <td colspan="4" width="100px">                                                                                       
+                                            <apex:commandButton styleClass="allocButtonSave" value="Create Tour" 
+                                                            onclick="jsCreateTour();"
+                                                            oncomplete="window.location.top.reload();"
+                                                            status="tourListPanel" 
+                                                            style="float:right"/>                                                                                     
+                                        </td>
+                                    </tr>                                                                                                        
+                            </table>
+                            <input type="hidden" id="tourRepId" value=" " readonly="true"/>
+                            <input type="hidden" id="tourAllocId" value="" readonly="true"/> 
+                        </apex:pageBlock>     
+
+                        <apex:outputPanel id="tourListPanel" layout="block" style="overflow:auto; height:400px; width: 100%; float: left">                                  
+                            <apex:pageBlock title="Selected Tour List (records:{!tourEvents.size})" id="repsTourBlock" mode="inlineEdit">                                                
+                                <apex:pageBlockTable value="{!tourEvents}" var="tour" style="float: left; margin-top: 10px; margin-bottom:20px">                                    
+                                    <apex:column headerValue="Status" width="105px" styleClass="{!IF(tour.Status__c == 'Cancelled','allocated','unallocated')}">                                       
+                                        <apex:outputField value="{!tour.Status__c}" />                                       
+                                    </apex:column>  
+                                    <apex:column headerValue="Start" width="140px">                                       
+                                        <apex:outputField value="{!tour.StartDateTime}"/>                                       
+                                    </apex:column>                                     
+
+                                    <apex:column headerValue="End" width="140px">
+                                        <apex:outputField value="{!tour.EndDateTime}"/>
+                                    </apex:column>     
+
+                                    <apex:column value="{!tour.Allocation__r.Account__c}" width="140px"  onclick="setSelected(this)"/> 
+                                    <apex:column value="{!tour.Allocation__r.SalesRep__c}" width="140px" onclick="setSelected(this)"/>       
+             
+                                    <apex:column headerValue="Notes" style="width:400px">
+                                        <apex:outputField value="{!tour.Description}"/>
+                                    </apex:column>
+                                    <apex:column headerValue="Delete" onclick="setSelected(this)">
+                                        <apex:commandButton styleClass="allocButton" style="width:45px" value="Delete" 
+                                            oncomplete="window.location.top.reload();"
+                                            onclick="apexDeleteTourEvent('{!tour.Id}', '{!tour.Allocation__c}', '{!tour.Status__c}')"/>   
+                                    </apex:column>  
+                                    <apex:column headerValue="Action" onclick="setSelected(this)">
+                                        <apex:commandButton styleClass="allocButton" style="width:45px" value="Update" 
+                                            oncomplete="window.location.top.reload();"
+                                            onclick="apexUpdateTourEvent('{!tour.Id}','{!tour.StartDateTime}','{!tour.EndDateTime}')"/>   
+                                    </apex:column>  
+                                    
+                                </apex:pageBlockTable>            
+
+                            </apex:pageBlock>
+                        </apex:outputPanel>
+                    </apex:outputPanel>    
+                    </apex:outputPanel>                     
+                </apex:outputPanel>
+            </apex:form> 
+
+        </apex:tab>        
+
+        <!-- ***************** ************************ ******************** -->
+        <!-- ***************** Resports TAB sections ?isdtp=mn/vw ********** -->
+        <!-- ***************** ************************ ******************** -->
+        <apex:tab label="Reports" name="reportsTab" id="reportsTab" style="display:none">
+            <apex:form >
+                <apex:outputPanel id="unallocatedReport" styleClass="unallocatedReport">
+                   <apex:outputLink style="font-size:18px" value="/00O0D000000O3Sr?isdtp=vw&pv0=Allocated" id="reportsLink" target="_blank">Unallocated - by Language</apex:outputLink> 
+                </apex:outputPanel>
+            </apex:form>
+        </apex:tab>
+
+    </apex:tabPanel>
+    <!--DIV o show waiting popup -->
+    <div id="waitPopup" class="waitPopup" style="position: fixed; left: 45%; top: 50%; border:1px solid gray">
+        <div style="display: inline-block; padding: 2px; background-color: #f7f7f7; width: 125px;">
+            <img src="/img/loading.gif" style="float: left; margin: 8px;" />
+            <span style="display: inline-block; padding: 10px 0px;">Please Wait...</span>
+        </div>
+    </div> 
+    <div id="confirmBox">
+        <div class="message"></div>
+        <span class="button yes">Yes</span>
+        <span class="button no">No</span>
+    </div>  
+    <!-- Show APEX Error/Info Messages 
+    <apex:outputPanel styleClass="myCustomMessage">
+        <apex:pageMessage severity="error" strength="1" summary="Your ErrorMessage" />
+    </apex:outputPanel>-->
+</apex:page>
