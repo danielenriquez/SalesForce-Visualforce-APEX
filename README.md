@@ -11,6 +11,10 @@
 
 ![reservations](https://user-images.githubusercontent.com/8003697/59090281-46ab0b80-8904-11e9-9761-ee807b5b50df.jpg)
 
-<b>Allocation Screeshot</b>
+<b>Allocations Screeshot</b>
 
 ![allocation](https://user-images.githubusercontent.com/8003697/59090347-76f2aa00-8904-11e9-8edb-86b483fd2aea.jpg)
+
+<b>Tour Appointments Screeshot</b>
+
+![tour](https://user-images.githubusercontent.com/8003697/59090417-a4d7ee80-8904-11e9-83a3-4db18f4cfd44.jpg)
