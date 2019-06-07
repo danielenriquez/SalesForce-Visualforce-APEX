@@ -6,3 +6,7 @@
 <b>Allocations.page</b> Is the App frontend, a Visualforce page with the visual interface to create, update or filter the data. It is based on three tabs, "Reservations", "Allocations", "Tour Appointment".
 
 <b>AllocationsController.cls</b> Is the App controller, an APEX class with the functions and procedures to manage and retrive data from SalesForce objects.
+
+<b>Reservations Screeshot</b>
+
+![reservations](https://user-images.githubusercontent.com/8003697/59090281-46ab0b80-8904-11e9-9761-ee807b5b50df.jpg)
