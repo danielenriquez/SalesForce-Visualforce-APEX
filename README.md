@@ -9,7 +9,7 @@
 
 <b>Reservations Screenshot</b>
 
-![reservations](https://user-images.githubusercontent.com/8003697/59090281-46ab0b80-8904-11e9-9761-ee807b5b50df.jpg)
+![reservations](https://user-images.githubusercontent.com/8003697/59092960-b1f7dc00-890a-11e9-9ed9-3f29c82cf273.jpg)
 
 <b>Allocations Screenshot</b>
 
