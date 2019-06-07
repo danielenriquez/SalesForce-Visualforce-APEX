@@ -10,3 +10,7 @@
 <b>Reservations Screeshot</b>
 
 ![reservations](https://user-images.githubusercontent.com/8003697/59090281-46ab0b80-8904-11e9-9761-ee807b5b50df.jpg)
+
+<b>Allocation Screeshot</b>
+
+![allocation](https://user-images.githubusercontent.com/8003697/59090347-76f2aa00-8904-11e9-8edb-86b483fd2aea.jpg)
