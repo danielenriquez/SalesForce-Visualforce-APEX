@@ -9,12 +9,12 @@
 
 <b>Reservations Screenshot</b>
 
-![reservations](https://user-images.githubusercontent.com/8003697/59092960-b1f7dc00-890a-11e9-9ed9-3f29c82cf273.jpg)
+![reservations-1](https://user-images.githubusercontent.com/8003697/59267851-31efb000-8c43-11e9-9257-4fdecf791afb.jpg)
 
 <b>Allocations Screenshot</b>
 
-![allocation](https://user-images.githubusercontent.com/8003697/59090347-76f2aa00-8904-11e9-8edb-86b483fd2aea.jpg)
+![allocation-1](https://user-images.githubusercontent.com/8003697/59267812-1389b480-8c43-11e9-90bc-1fc7ceb7fdaa.jpg)
 
 <b>Tour Appointments Screenshot</b>
 
-![tour](https://user-images.githubusercontent.com/8003697/59090417-a4d7ee80-8904-11e9-83a3-4db18f4cfd44.jpg)
+![tour-1](https://user-images.githubusercontent.com/8003697/59267892-48960700-8c43-11e9-8af7-6db40ac51359.jpg)
